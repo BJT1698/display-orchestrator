@@ -5,15 +5,29 @@ let
     set -euo pipefail
 
     # Ensure required tools are available
-    export PATH="${lib.makeBinPath [ pkgs.newt pkgs.parted pkgs.dosfstools pkgs.e2fsprogs pkgs.util-linux pkgs.nixos-install-tools pkgs.coreutils pkgs.findutils pkgs.gawk pkgs.systemd ]}:$PATH"
+    export PATH="${lib.makeBinPath [ pkgs.newt pkgs.parted pkgs.dosfstools pkgs.e2fsprogs pkgs.util-linux pkgs.nixos-install-tools pkgs.coreutils pkgs.findutils pkgs.gawk pkgs.systemd pkgs.git ]}:$PATH"
 
     clear
     whiptail --title "Digital Signage Appliance Installer" \
       --msgbox "Welcome to the Digital Signage Client Appliance Installer.\n\nThis wizard will guide you through installing the custom Kiosk OS onto this machine." 12 70
 
-    # 1. Discover Disks
-    DISKS=($(lsblk -d -n -o NAME,TYPE,SIZE,MODEL | grep "disk" | grep -v "loop" | awk '{print "/dev/"$1, "("$3, $4")"}'))
-    if [ ''${#DISKS[@]} -eq 0 ]; then
+    # 1. Discover Disks safely without word splitting issues
+    MENU_OPTIONS=()
+    while read -r name size model; do
+      [ -z "$name" ] && continue
+      case "$name" in
+        fd*|sr*|loop*|zram*|ram*) continue ;;
+      esac
+      dev="/dev/$name"
+      [ -b "$dev" ] || continue
+      desc="''${size}"
+      if [ -n "$model" ]; then
+        desc="''${size} - ''${model}"
+      fi
+      MENU_OPTIONS+=("$dev" "$desc")
+    done < <(lsblk -d -n -o NAME,SIZE,MODEL | grep -v "^fd")
+
+    if [ ''${#MENU_OPTIONS[@]} -eq 0 ]; then
       whiptail --title "Error" --msgbox "No target installation drives detected." 8 50
       exit 1
     fi
@@ -21,7 +35,7 @@ let
     # 2. Disk Selection Dialog
     TARGET_DISK=$(whiptail --title "Select Target Installation Drive" \
       --menu "Choose the disk where Digital Signage Appliance will be installed:" 16 70 6 \
-      "''${DISKS[@]}" 3>&1 1>&2 2>&3)
+      "''${MENU_OPTIONS[@]}" 3>&1 1>&2 2>&3)
 
     if [ -z "$TARGET_DISK" ]; then
       whiptail --title "Cancelled" --msgbox "Installation cancelled by user." 8 50
@@ -45,7 +59,10 @@ let
     parted -s "$TARGET_DISK" set 1 esp on
     parted -s "$TARGET_DISK" mkpart primary ext4 513MiB 100%
 
-    # Handle NVMe vs SATA naming
+    partprobe "$TARGET_DISK" || true
+    udevadm settle || sleep 2
+
+    # Handle NVMe vs SATA/VirtIO naming
     if [[ "$TARGET_DISK" =~ nvme ]] || [[ "$TARGET_DISK" =~ mmcblk ]]; then
       BOOT_PART="''${TARGET_DISK}p1"
       ROOT_PART="''${TARGET_DISK}p2"
@@ -72,6 +89,10 @@ let
     mkdir -p /mnt/etc/nixos
     if [ -d /iso/flake ]; then
       cp -r /iso/flake/* /mnt/etc/nixos/
+    fi
+
+    if [ -d /mnt/etc/nixos ]; then
+      (cd /mnt/etc/nixos && git init -b main && git add . || true)
     fi
 
     nixos-install --flake "/mnt/etc/nixos#target-system" --no-root-passwd
