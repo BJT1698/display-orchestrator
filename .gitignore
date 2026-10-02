@@ -22,3 +22,5 @@ result-*
 *.log
 .env.local
 .DS_Store
+vm/
+*.qcow2
