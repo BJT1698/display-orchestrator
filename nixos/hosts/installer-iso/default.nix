@@ -22,6 +22,10 @@
     }
   ];
 
+  # Root auto-login for automated installation
+  services.getty.autologinUser = lib.mkForce "root";
+  security.sudo.wheelNeedsPassword = false;
+
   # Basic system utilities
   environment.systemPackages = with pkgs; [
     git

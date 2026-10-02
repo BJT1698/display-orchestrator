@@ -1,8 +1,14 @@
 { config, pkgs, lib, ... }:
 
 let
+  repoSource = ../..;
   installerScript = pkgs.writeShellScriptBin "signage-installer" ''
     set -euo pipefail
+
+    # Ensure root privileges
+    if [ "$(id -u)" -ne 0 ]; then
+      exec sudo "$0" "$@"
+    fi
 
     # Ensure required tools are available
     export PATH="${lib.makeBinPath [ pkgs.newt pkgs.parted pkgs.dosfstools pkgs.e2fsprogs pkgs.util-linux pkgs.nixos-install-tools pkgs.coreutils pkgs.findutils pkgs.gawk pkgs.systemd pkgs.git ]}:$PATH"
@@ -85,17 +91,24 @@ let
     # 7. Execute NixOS Installation
     whiptail --title "Installing NixOS" --infobox "Deploying custom NixOS client appliance image...\nThis may take a few minutes." 8 70
 
-    # Copy flake sources to target
+    # Clean and copy embedded flake source directly from Nix store
     mkdir -p /mnt/etc/nixos
-    if [ -d /iso/flake ]; then
-      cp -r /iso/flake/* /mnt/etc/nixos/
-    fi
+    cp -r ${repoSource}/nixos/* /mnt/etc/nixos/
+    mkdir -p /mnt/etc/client
+    cp -r ${repoSource}/client/* /mnt/etc/client/
+    chmod -R u+w /mnt/etc/nixos /mnt/etc/client
 
-    if [ -d /mnt/etc/nixos ]; then
-      (cd /mnt/etc/nixos && git init -b main && git add . || true)
-    fi
+    # Initialize Git repository in /mnt/etc/nixos for Nix Flakes
+    (
+      cd /mnt/etc/nixos
+      git init -b main
+      git config user.name "Signage Installer"
+      git config user.email "installer@signage.local"
+      git add .
+      git commit -m "initial installation config" || true
+    )
 
-    nixos-install --flake "/mnt/etc/nixos#target-system" --no-root-passwd
+    nixos-install --flake "/mnt/etc/nixos#target-system" --no-root-passwd --no-channel-copy
 
     whiptail --title "Success!" \
       --msgbox "Installation completed successfully!\n\nThe system will now reboot into the Digital Signage Appliance." 10 70
@@ -116,8 +129,8 @@ in
     pkgs.git
   ];
 
-  # Autologin on tty1 to launch the TUI installer automatically
-  services.getty.autologinUser = lib.mkDefault "root";
+  # Autologin on tty1 to launch the TUI installer automatically as root
+  services.getty.autologinUser = lib.mkForce "root";
   environment.loginShellInit = ''
     if [ "$(tty)" = "/dev/tty1" ]; then
       signage-installer
