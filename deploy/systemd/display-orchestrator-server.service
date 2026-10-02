@@ -1,0 +1,19 @@
+[Unit]
+Description=Lightweight Digital Signage Orchestrator Server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/display-orchestrator/server
+ExecStart=/usr/bin/node src/server.js
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+Environment=PORT=8080
+Environment=DATA_DIR=/opt/display-orchestrator/data
+Environment=MEDIA_DIR=/opt/display-orchestrator/media
+Environment=PUBLIC_DIR=/opt/display-orchestrator/server/public
+
+[Install]
+WantedBy=multi-user.target

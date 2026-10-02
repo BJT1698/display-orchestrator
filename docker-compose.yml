@@ -1,0 +1,55 @@
+services:
+  # Central Signage Orchestrator Server
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: signage-orchestrator-server
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - HOST=0.0.0.0
+      - DATA_DIR=/data
+      - MEDIA_DIR=/media
+    volumes:
+      - ./data:/data
+      - ./media:/media
+    networks:
+      - signage-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 20s
+      timeout: 3s
+      retries: 3
+
+  # Production Kiosk Display Node (Running on host X11 / Wayland display)
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile.prod
+    container_name: signage-client-node
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - DISPLAY=${DISPLAY:-:0}
+      - SERVER_URL=ws://127.0.0.1:8080/ws
+      - CLIENT_NAME=Main Lobby Display
+      - AGENT_PORT=9090
+      - CACHE_DIR=/cache
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ${XAUTHORITY:-~/.Xauthority}:/root/.Xauthority:ro
+      - /dev/dri:/dev/dri:rw
+      - /dev/shm:/dev/shm:rw
+      - ./client/cache:/cache
+    devices:
+      - /dev/dri:/dev/dri
+    privileged: true
+    depends_on:
+      - server
+
+networks:
+  signage-net:
+    driver: bridge

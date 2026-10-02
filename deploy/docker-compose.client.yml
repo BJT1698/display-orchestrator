@@ -1,0 +1,24 @@
+services:
+  display-node:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.client
+    container_name: display-node-client
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - DISPLAY=:0
+      - SERVER_URL=ws://127.0.0.1:8080/ws
+      - CLIENT_NAME=Reception Display
+      - DISPLAY_TOKEN=
+      - AGENT_PORT=9090
+      - CACHE_DIR=/cache
+      - ORIENTATION=landscape
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - /dev/dri:/dev/dri:rw
+      - /dev/shm:/dev/shm:rw
+      - ../client/cache:/cache
+    devices:
+      - /dev/dri:/dev/dri
+    privileged: true

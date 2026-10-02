@@ -1,0 +1,60 @@
+services:
+  # 1. Server Orchestrator (Live development mode)
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.dev
+    container_name: signage-server-dev
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - HOST=0.0.0.0
+      - DATA_DIR=/data
+      - MEDIA_DIR=/media
+    volumes:
+      - ./data:/data
+      - ./media:/media
+      - ./server:/app:ro
+    networks:
+      signage-dev-net:
+        aliases:
+          - server
+
+  # 2. Windowed Dev Client (Runs on host display without fullscreen lock + Chrome DevTools)
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile.dev
+    container_name: signage-client-dev
+    restart: unless-stopped
+    ports:
+      - "9090:9090"  # Local Viewer HTTP
+      - "9222:9222"  # Chrome Remote Debugging (chrome://inspect)
+    environment:
+      - DISPLAY=${DISPLAY:-:0}
+      - SERVER_URL=ws://server:8080/ws
+      - CLIENT_NAME=Dev Screen (Windowed 720p)
+      - AGENT_PORT=9090
+      - CACHE_DIR=/cache
+      - WINDOWED=true
+      - WINDOW_WIDTH=1280
+      - WINDOW_HEIGHT=720
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro
+      - ${XAUTHORITY:-~/.Xauthority}:/root/.Xauthority:ro
+      - /dev/dri:/dev/dri:rw
+      - /dev/shm:/dev/shm:rw
+      - ./client/agent:/app/client/agent:ro
+      - ./client/viewer:/app/client/viewer:ro
+      - ./client/cache:/cache
+    networks:
+      - signage-dev-net
+    depends_on:
+      - server
+
+networks:
+  signage-dev-net:
+    name: signage-dev-net
+    driver: bridge

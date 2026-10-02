@@ -1,0 +1,21 @@
+[Unit]
+Description=Digital Signage Client Kiosk Node
+After=network-online.target graphical.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Environment=DISPLAY=:0
+Environment=XAUTHORITY=/home/pi/.Xauthority
+Environment=SERVER_URL=ws://192.168.1.100:8080/ws
+Environment=CLIENT_NAME="Main Lobby Screen"
+Environment=AGENT_PORT=9090
+Environment=CACHE_DIR=/opt/display-orchestrator/client/cache
+WorkingDirectory=/opt/display-orchestrator/client
+ExecStart=/bin/bash /opt/display-orchestrator/client/scripts/start-kiosk.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=graphical.target

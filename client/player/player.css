@@ -1,0 +1,334 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+html, body {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background-color: #000000;
+  color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  cursor: none !important;
+}
+
+/* Base Stage Container */
+#stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000000;
+}
+
+/* Display Layers for Smooth Cross-fading */
+.layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1), transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #000000;
+  will-change: opacity, transform;
+}
+
+.layer.active {
+  opacity: 1;
+  visibility: visible;
+  z-index: 2;
+  transform: translateX(0) scale(1);
+}
+
+.layer.previous {
+  opacity: 0;
+  visibility: visible;
+  z-index: 1;
+}
+
+/* Transition Animations */
+.transition-fade.layer {
+  transition: opacity 0.8s ease-in-out;
+}
+
+.transition-slide-left.layer:not(.active) {
+  transform: translateX(100%);
+  opacity: 0;
+}
+.transition-slide-left.layer.active {
+  transform: translateX(0);
+  opacity: 1;
+}
+.transition-slide-left.layer.previous {
+  transform: translateX(-100%);
+  opacity: 0;
+}
+
+.transition-zoom.layer:not(.active) {
+  transform: scale(1.08);
+  opacity: 0;
+}
+.transition-zoom.layer.active {
+  transform: scale(1);
+  opacity: 1;
+}
+
+/* Media Elements Inside Layers */
+.layer img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.layer video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000000;
+}
+
+.layer iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #ffffff;
+}
+
+.layer .html-container {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Blank Screen Overlay */
+#blank-overlay {
+  position: fixed;
+  inset: 0;
+  background: #000000;
+  z-index: 999;
+  display: none;
+}
+#blank-overlay.visible {
+  display: block;
+}
+
+/* Push URL Live Frame */
+#push-frame-container {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: #000000;
+  display: none;
+}
+#push-frame-container.visible {
+  display: block;
+}
+#push-frame-container iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+/* HUD Header & Status */
+#hud-overlay {
+  position: fixed;
+  top: 24px;
+  right: 28px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 8px 16px;
+  border-radius: 9999px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+#hud-overlay.hidden {
+  opacity: 0;
+}
+
+.hud-clock {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: 0.05em;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 10px #22c55e;
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+.status-dot.offline {
+  background: #f59e0b;
+  box-shadow: 0 0 10px #f59e0b;
+}
+
+.status-dot.disconnected {
+  background: #ef4444;
+  box-shadow: 0 0 10px #ef4444;
+}
+
+/* Emergency Alert Overlay */
+#emergency-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(185, 28, 28, 0.96);
+  color: #ffffff;
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 48px;
+  animation: pulseBg 2s infinite ease-in-out;
+}
+
+#emergency-overlay.visible {
+  display: flex;
+}
+
+@keyframes pulseBg {
+  0%, 100% { background: rgba(185, 28, 28, 0.96); }
+  50% { background: rgba(220, 38, 38, 0.98); }
+}
+
+.alert-title {
+  font-size: 4.5rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 24px;
+  text-shadow: 0 4px 24px rgba(0,0,0,0.5);
+}
+
+.alert-message {
+  font-size: 2.2rem;
+  max-width: 1000px;
+  line-height: 1.4;
+  font-weight: 600;
+  background: rgba(0,0,0,0.3);
+  padding: 32px 48px;
+  border-radius: 16px;
+  border: 2px solid rgba(255,255,255,0.3);
+}
+
+/* Pairing / Unpaired Screen */
+#pairing-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: radial-gradient(circle at center, #0f172a 0%, #020617 100%);
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 40px;
+  text-align: center;
+}
+
+#pairing-overlay.visible {
+  display: flex;
+}
+
+.pairing-card {
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(20px);
+  padding: 50px 70px;
+  border-radius: 28px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  max-width: 750px;
+  width: 90%;
+}
+
+.pairing-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 9999px;
+  color: #38bdf8;
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 24px;
+}
+
+.pairing-title {
+  font-size: 2.5rem;
+  font-weight: 800;
+  margin-bottom: 12px;
+  letter-spacing: -0.02em;
+}
+
+.pairing-sub {
+  color: #94a3b8;
+  font-size: 1.15rem;
+  line-height: 1.5;
+  margin-bottom: 36px;
+}
+
+.pairing-code-box {
+  background: #020617;
+  border: 2px dashed #38bdf8;
+  border-radius: 20px;
+  padding: 24px 36px;
+  margin-bottom: 36px;
+}
+
+.pairing-code-label {
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  color: #64748b;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  margin-bottom: 8px;
+}
+
+.pairing-code-value {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 4.5rem;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  color: #ffffff;
+  text-shadow: 0 0 30px rgba(56, 189, 248, 0.5);
+}
+
+.pairing-meta {
+  display: flex;
+  justify-content: center;
+  gap: 32px;
+  color: #64748b;
+  font-size: 0.95rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 24px;
+}
+
+.pairing-meta-item strong {
+  color: #94a3b8;
+}

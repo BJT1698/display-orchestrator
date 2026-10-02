@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Digital Signage Orchestrator</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="app">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-icon">⚡</div>
+        <div class="brand-text">
+          <div class="title">Signage<strong>Hub</strong></div>
+          <div class="subtitle">Orchestrator v2.0</div>
+        </div>
+      </div>
+
+      <nav class="nav-menu">
+        <button class="nav-item active" data-tab="overview">📊 Overview</button>
+        <button class="nav-item" data-tab="displays">🖥️ Displays <span class="badge" id="badge-displays">0</span></button>
+        <button class="nav-item" data-tab="playlists">🎬 Playlists <span class="badge" id="badge-playlists">0</span></button>
+        <button class="nav-item" data-tab="media">📁 Media Library</button>
+        <button class="nav-item" data-tab="logs">📜 Audit Logs</button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="ws-status">
+          <span class="status-dot online" id="ws-indicator"></span>
+          <span id="ws-text">WebSocket Active</span>
+        </div>
+        <button class="btn btn-primary btn-block" id="btn-open-pairing">🔑 Pair New Display</button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <header class="topbar">
+        <div class="page-title" id="current-view-title">Dashboard Overview</div>
+        <div class="topbar-actions">
+          <button class="btn btn-danger" id="btn-emergency">🚨 Emergency Broadcast</button>
+          <button class="btn btn-outline" id="btn-refresh">🔄 Refresh</button>
+        </div>
+      </header>
+
+      <!-- View: Overview -->
+      <section class="tab-pane active" id="pane-overview">
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-header">Active Displays</div>
+            <div class="kpi-value"><span id="kpi-online">0</span><small>/ <span id="kpi-total">0</span></small></div>
+            <div class="kpi-sub">Real-time Connected</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-header">Configured Playlists</div>
+            <div class="kpi-value" id="kpi-playlists">0</div>
+            <div class="kpi-sub">Automated Rotations</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-header">Media Assets</div>
+            <div class="kpi-value" id="kpi-media">0</div>
+            <div class="kpi-sub">Images, Videos & URLs</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-header">Server Health</div>
+            <div class="kpi-value text-emerald">99.9%</div>
+            <div class="kpi-sub" id="kpi-uptime">Uptime: 0s</div>
+          </div>
+        </div>
+
+        <div class="section-title">Live Connected Display Nodes</div>
+        <div class="displays-grid" id="overview-displays-grid"></div>
+      </section>
+
+      <!-- View: Displays -->
+      <section class="tab-pane" id="pane-displays">
+        <div class="pane-header">
+          <h2>Display Management</h2>
+          <button class="btn btn-primary" id="btn-pair-screen">+ Pair Screen</button>
+        </div>
+        <div class="displays-grid" id="full-displays-grid"></div>
+      </section>
+
+      <!-- View: Playlists -->
+      <section class="tab-pane" id="pane-playlists">
+        <div class="pane-header">
+          <h2>Playlists & Sequencer</h2>
+          <button class="btn btn-primary" id="btn-create-playlist">+ New Playlist</button>
+        </div>
+        <div class="playlists-layout">
+          <div class="playlists-list" id="playlists-list-container"></div>
+          <div class="playlist-editor" id="playlist-editor-container">
+            <div class="empty-state">Select a playlist to edit sequence and slide transitions</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- View: Media -->
+      <section class="tab-pane" id="pane-media">
+        <div class="pane-header">
+          <h2>Media Library</h2>
+          <div class="actions">
+            <button class="btn btn-primary" id="btn-upload-media">⬆️ Upload / Add Asset</button>
+          </div>
+        </div>
+        <div class="media-grid" id="media-grid-container"></div>
+      </section>
+
+      <!-- View: Logs -->
+      <section class="tab-pane" id="pane-logs">
+        <div class="pane-header">
+          <h2>Real-time Audit Logs</h2>
+        </div>
+        <div class="logs-container" id="logs-container"></div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Pairing Modal -->
+  <div class="modal-backdrop" id="modal-pairing">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Pair New Display Screen</h3>
+        <button class="close-btn" onclick="closeModal('modal-pairing')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted">Enter the 6-character PIN displayed on the screen:</p>
+        <div class="form-group">
+          <label>Pairing PIN</label>
+          <input type="text" id="input-pairing-code" class="pin-input" placeholder="K9F-2A7" maxlength="7">
+        </div>
+        <div class="form-group">
+          <label>Display Friendly Name</label>
+          <input type="text" id="input-pairing-name" placeholder="e.g. Reception Main Display">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('modal-pairing')">Cancel</button>
+        <button class="btn btn-primary" id="btn-submit-pairing">Approve & Pair</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Push URL Modal -->
+  <div class="modal-backdrop" id="modal-push">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Push Live Web URL</h3>
+        <button class="close-btn" onclick="closeModal('modal-push')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>URL</label>
+          <input type="url" id="input-push-url" placeholder="https://example.com/dashboard">
+        </div>
+        <div class="form-group">
+          <label>Duration (Seconds)</label>
+          <input type="number" id="input-push-dur" value="30" min="5" max="3600">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('modal-push')">Cancel</button>
+        <button class="btn btn-primary" id="btn-submit-push">Push Live</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

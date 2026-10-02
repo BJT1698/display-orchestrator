@@ -1,0 +1,67 @@
+name: Build & Release NixOS Installer ISO
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-iso:
+    name: Build NixOS Live Installer ISO
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix with Flakes Support
+        uses: cachix/install-nix-action@v27
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+
+      - name: Validate Nix Flake
+        working-directory: nixos
+        run: nix flake check
+
+      - name: Build Installer ISO Image
+        working-directory: nixos
+        run: |
+          nix build .#nixosConfigurations.installer-iso.config.system.build.isoImage -L
+
+      - name: Extract & Compute SHA256 Checksum
+        working-directory: nixos
+        run: |
+          mkdir -p ../dist
+          cp -L result/iso/*.iso ../dist/signage-nixos-installer.iso
+          cd ../dist
+          sha256sum signage-nixos-installer.iso > signage-nixos-installer.iso.sha256
+          echo "Generated ISO checksum:"
+          cat signage-nixos-installer.iso.sha256
+
+      - name: Upload ISO Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: signage-nixos-installer-iso
+          path: |
+            dist/signage-nixos-installer.iso
+            dist/signage-nixos-installer.iso.sha256
+          retention-days: 14
+
+      - name: Create GitHub Release & Publish Assets
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/signage-nixos-installer.iso
+            dist/signage-nixos-installer.iso.sha256
+          draft: false
+          prerelease: false
+          generate_release_notes: true

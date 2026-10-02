@@ -1,0 +1,16 @@
+# References root docker-compose.dev.yml
+services:
+  server:
+    extends:
+      file: ../docker-compose.dev.yml
+      service: server
+
+  client-dev:
+    extends:
+      file: ../docker-compose.dev.yml
+      service: client-dev
+
+  client-simulated:
+    extends:
+      file: ../docker-compose.dev.yml
+      service: client-simulated

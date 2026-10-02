@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Display Kiosk Player</title>
+  <link rel="stylesheet" href="player.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700;800;900&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Main Stage for Playlist Slides -->
+  <div id="stage">
+    <!-- Double-buffering Layers -->
+    <div id="layer-a" class="layer"></div>
+    <div id="layer-b" class="layer"></div>
+  </div>
+
+  <!-- HUD Overlay (Clock, Date & Network Status) -->
+  <div id="hud-overlay">
+    <div id="status-indicator" class="status-dot" title="Connected"></div>
+    <div id="hud-time" class="hud-clock">00:00:00</div>
+  </div>
+
+  <!-- Push URL Live Fullscreen Container -->
+  <div id="push-frame-container">
+    <iframe id="push-iframe" src="about:blank" allow="autoplay; fullscreen"></iframe>
+  </div>
+
+  <!-- Blank Screen Overlay -->
+  <div id="blank-overlay"></div>
+
+  <!-- Emergency Alert Overlay -->
+  <div id="emergency-overlay">
+    <div class="alert-title" id="alert-title">⚠️ EMERGENCY ALERT</div>
+    <div class="alert-message" id="alert-message">Please follow staff instructions immediately.</div>
+  </div>
+
+  <!-- Pairing / Unpaired Screen -->
+  <div id="pairing-overlay">
+    <div class="pairing-card">
+      <div class="pairing-badge">⚡ Display Provisioning</div>
+      <h1 class="pairing-title">Display Unpaired</h1>
+      <p class="pairing-sub">
+        To connect this screen to the orchestrator, open the web dashboard and enter the pairing code below:
+      </p>
+
+      <div class="pairing-code-box">
+        <div class="pairing-code-label">PAIRING CODE</div>
+        <div class="pairing-code-value" id="pairing-code-display">--- ---</div>
+      </div>
+
+      <div class="pairing-meta">
+        <div class="pairing-meta-item">Device: <strong id="pairing-device-name">Display Node</strong></div>
+        <div class="pairing-meta-item">UUID: <strong id="pairing-device-uuid">--------</strong></div>
+        <div class="pairing-meta-item">Server: <strong id="pairing-server-url">ws://...</strong></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="player.js"></script>
+</body>
+</html>

@@ -1,0 +1,36 @@
+services:
+  orchestrator:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.server
+    container_name: display-orchestrator-server
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - HOST=0.0.0.0
+      - DATA_DIR=/data
+      - MEDIA_DIR=/media
+    volumes:
+      - ../data:/data
+      - ../media:/media
+
+  # Simulated Client Agent (accessible at http://localhost:9090 in browser)
+  display-sim:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.client
+    container_name: display-node-sim
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    environment:
+      - SERVER_URL=ws://orchestrator:8080/ws
+      - CLIENT_NAME=Simulated Screen 1
+      - AGENT_PORT=9090
+      - CACHE_DIR=/cache
+    volumes:
+      - ../client/cache:/cache
+    depends_on:
+      - orchestrator

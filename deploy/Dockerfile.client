@@ -1,0 +1,52 @@
+# ==============================================================================
+# Client Node Kiosk Container (Debian Slim with Chromium + X11/Cage + Node.js)
+# Supports x86_64 and arm64 (Raspberry Pi 4/5, mini-PCs, Intel NUC)
+# ==============================================================================
+FROM debian:bookworm-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV NODE_ENV=production
+ENV DISPLAY=:0
+ENV AGENT_PORT=9090
+ENV SERVER_URL=ws://server:8080/ws
+ENV CACHE_DIR=/cache
+
+# Install Chromium, X11 utilities, audio libraries, fonts, xvfb and Node.js runtime
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    chromium \
+    chromium-sandbox \
+    cage \
+    xvfb \
+    x11-xserver-utils \
+    unclutter \
+    curl \
+    ca-certificates \
+    libgl1-mesa-dri \
+    libgl1-mesa-glx \
+    mesa-utils \
+    fonts-liberation \
+    fonts-dejavu \
+    fonts-noto-color-emoji \
+    nodejs \
+    npm \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Create cache directory
+RUN mkdir -p /cache /cache/media
+
+# Copy client codebase
+COPY client/package.json ./client/
+COPY client/agent/package.json ./client/agent/
+WORKDIR /app/client/agent
+RUN npm install --omit=dev
+
+COPY client/ /app/client/
+RUN chmod +x /app/client/scripts/*.sh
+
+VOLUME ["/cache"]
+
+EXPOSE 9090 9222
+
+ENTRYPOINT ["/app/client/scripts/x11-entrypoint.sh"]

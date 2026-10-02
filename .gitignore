@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+package-lock.json.bak
+__pycache__/
+*.pyc
+
+# Local runtime & DB data
+data/*.sqlite*
+data/*.db*
+client/cache/*
+client/cache-test/*
+!client/cache/.gitkeep
+
+# Build artifacts & results
+dist/
+result
+result-*
+*.iso
+*.iso.sha256
+
+# Logs & temp
+*.log
+.env.local
+.DS_Store
