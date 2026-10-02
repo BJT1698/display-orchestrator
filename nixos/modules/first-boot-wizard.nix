@@ -3,7 +3,7 @@
 let
   firstBootScript = pkgs.writeShellScriptBin "signage-first-boot-wizard" ''
     set -euo pipefail
-    export PATH="${lib.makeBinPath [ pkgs.whiptail pkgs.curl pkgs.coreutils pkgs.util-linux pkgs.systemd ]}:$PATH"
+    export PATH="${lib.makeBinPath [ pkgs.newt pkgs.curl pkgs.coreutils pkgs.util-linux pkgs.systemd ]}:$PATH"
 
     mkdir -p /etc/signage /var/cache/signage/media
 
@@ -72,7 +72,7 @@ in
 {
   environment.systemPackages = [
     firstBootScript
-    pkgs.whiptail
+    pkgs.newt
     pkgs.curl
   ];
 

@@ -5,7 +5,7 @@ let
     set -euo pipefail
 
     # Ensure required tools are available
-    export PATH="${lib.makeBinPath [ pkgs.whiptail pkgs.parted pkgs.dosfstools pkgs.e2fsprogs pkgs.util-linux pkgs.nixos-install-tools pkgs.coreutils pkgs.findutils pkgs.gawk pkgs.systemd ]}:$PATH"
+    export PATH="${lib.makeBinPath [ pkgs.newt pkgs.parted pkgs.dosfstools pkgs.e2fsprogs pkgs.util-linux pkgs.nixos-install-tools pkgs.coreutils pkgs.findutils pkgs.gawk pkgs.systemd ]}:$PATH"
 
     clear
     whiptail --title "Digital Signage Appliance Installer" \
@@ -86,7 +86,7 @@ in
 {
   environment.systemPackages = [
     installerScript
-    pkgs.whiptail
+    pkgs.newt
     pkgs.parted
     pkgs.dosfstools
     pkgs.e2fsprogs
