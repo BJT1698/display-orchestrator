@@ -32,9 +32,10 @@
   i18n.defaultLocale = "en_US.UTF-8";
 
   # Hardware acceleration
-  hardware.graphics = {
+  hardware.opengl = {
     enable = true;
-    enable32Bit = true;
+    driSupport = true;
+    driSupport32Bit = true;
   };
 
   # System state version
