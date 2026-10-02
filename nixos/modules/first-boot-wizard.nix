@@ -80,8 +80,9 @@ in
   systemd.services.signage-first-boot = {
     description = "Digital Signage First-Boot Setup Wizard";
     wantedBy = [ "multi-user.target" ];
-    before = [ "signage-kiosk.service" ];
-    conditionPathExists = "!/etc/signage/client.env";
+    unitConfig = {
+      ConditionPathExists = "!/etc/signage/client.env";
+    };
     serviceConfig = {
       Type = "oneshot";
       StandardInput = "tty";
