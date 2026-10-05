@@ -94,9 +94,7 @@ let
     # Clean and copy embedded flake source directly from Nix store
     mkdir -p /mnt/etc/nixos
     cp -r ${repoSource}/nixos/* /mnt/etc/nixos/
-    mkdir -p /mnt/etc/client
-    cp -r ${repoSource}/client/* /mnt/etc/client/
-    chmod -R u+w /mnt/etc/nixos /mnt/etc/client
+    chmod -R u+w /mnt/etc/nixos
 
     # Initialize Git repository in /mnt/etc/nixos for Nix Flakes
     (
@@ -108,7 +106,7 @@ let
       git commit -m "initial installation config" || true
     )
 
-    nixos-install --flake "/mnt/etc/nixos#target-system" --no-root-passwd --no-channel-copy
+    nixos-install --flake "/mnt/etc/nixos#target-system" --no-root-passwd --no-channel-copy --show-trace
 
     whiptail --title "Success!" \
       --msgbox "Installation completed successfully!\n\nThe system will now reboot into the Digital Signage Appliance." 10 70

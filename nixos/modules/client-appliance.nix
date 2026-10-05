@@ -1,7 +1,7 @@
 { config, pkgs, lib, ... }:
 
 let
-  clientDir = ../../client;
+  clientDir = ../client;
   agentApp = pkgs.writeShellScriptBin "signage-agent-runner" ''
     set -euo pipefail
 
