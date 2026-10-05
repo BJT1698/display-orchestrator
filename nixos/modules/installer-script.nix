@@ -79,7 +79,7 @@ let
 
     # 5. Format Filesystems
     whiptail --title "Formatting" --infobox "Formatting filesystems (EFI & Root EXT4)..." 8 60
-    mkfs.fat -F32 "$BOOT_PART"
+    mkfs.fat -F32 -n "ESP" "$BOOT_PART"
     mkfs.ext4 -F -L "signage-root" "$ROOT_PART"
 
     # 6. Mount Target

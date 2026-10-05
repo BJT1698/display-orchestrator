@@ -11,6 +11,12 @@
   boot.loader.efi.canTouchEfiVariables = true;
   boot.loader.timeout = 1;
 
+  # Hardware block drivers for Stage 1 (VirtIO, NVMe, SATA, USB)
+  boot.initrd.availableKernelModules = [
+    "virtio_net" "virtio_pci" "virtio_mmio" "virtio_blk" "virtio_scsi"
+    "ahci" "xhci_pci" "nvme" "usbhid" "usb_storage" "sd_mod" "sr_mod" "ata_piix"
+  ];
+
   # Filesystem mounts (configured by installer script)
   fileSystems."/" = {
     device = "/dev/disk/by-label/signage-root";
