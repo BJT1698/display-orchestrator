@@ -13,7 +13,7 @@ let
 
     export CACHE_DIR="''${CACHE_DIR:-/var/cache/signage}"
     export AGENT_PORT="''${AGENT_PORT:-9090}"
-    export SERVER_URL="''${SERVER_URL:-ws://localhost:8080/ws}"
+    export SERVER_URL="''${SERVER_URL:-ws://10.0.2.2:8080/ws}"
     export CLIENT_NAME="''${CLIENT_NAME:-Signage-Kiosk}"
 
     mkdir -p "$CACHE_DIR/media"
@@ -45,7 +45,7 @@ in
   services.cage = {
     enable = true;
     user = "kiosk";
-    program = "${pkgs.chromium}/bin/chromium --no-sandbox --ozone-platform=wayland --enable-features=UseOzonePlatform --kiosk --noerrdialogs --disable-infobars --check-for-update-interval=31536000 --overscroll-history-navigation=0 --disable-pinch --disable-session-crashed-bubble --autoplay-policy=no-user-gesture-required --app=http://localhost:9090";
+    program = "${pkgs.chromium}/bin/chromium --no-sandbox --ozone-platform=wayland --enable-features=UseOzonePlatform --kiosk --noerrdialogs --disable-infobars --check-for-update-interval=31536000 --overscroll-history-navigation=0 --disable-pinch --disable-session-crashed-bubble --autoplay-policy=no-user-gesture-required --remote-debugging-port=9222 --remote-debugging-address=0.0.0.0 --app=http://localhost:9090";
     extraArguments = [ "-s" ]; # Silent mode
   };
 

@@ -46,4 +46,11 @@
 
   # System state version
   system.stateVersion = "24.05";
+
+  # Enable OpenSSH remote access
+  services.openssh = {
+    enable = true;
+    settings.PermitRootLogin = "yes";
+  };
+  users.users.root.initialHashedPassword = "";
 }

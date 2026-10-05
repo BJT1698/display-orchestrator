@@ -57,6 +57,27 @@
     </div>
   </div>
 
+  <!-- Standby / Idle Screen -->
+  <div id="standby-overlay">
+    <div class="pairing-card">
+      <div class="pairing-badge" id="standby-status-badge">⚡ Display Active</div>
+      <h1 class="pairing-title" id="standby-title">Waiting for Content</h1>
+      <p class="pairing-sub" id="standby-sub">
+        This display is active. Assign a playlist from the Web Dashboard to begin playback.
+      </p>
+
+      <div class="pairing-code-box" style="padding: 16px 24px; border-style: solid; border-color: rgba(255,255,255,0.1);">
+        <div class="pairing-code-label">ORCHESTRATOR SERVER</div>
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 1.3rem; color: #38bdf8; font-weight: 700; margin-top: 6px; word-break: break-all;" id="standby-server-url">ws://server:8080/ws</div>
+      </div>
+
+      <div class="pairing-meta">
+        <div class="pairing-meta-item">Device: <strong id="standby-device-name">Signage Node</strong></div>
+        <div class="pairing-meta-item">UUID: <strong id="standby-device-uuid">--------</strong></div>
+      </div>
+    </div>
+  </div>
+
   <script src="app.js"></script>
 </body>
 </html>

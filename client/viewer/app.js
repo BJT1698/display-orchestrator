@@ -16,6 +16,13 @@
   const pairingCodeDisplay = document.getElementById('pairing-code-display');
   const pairingDeviceName = document.getElementById('pairing-device-name');
   const pairingDeviceUuid = document.getElementById('pairing-device-uuid');
+  const standbyOverlay = document.getElementById('standby-overlay');
+  const standbyStatusBadge = document.getElementById('standby-status-badge');
+  const standbyTitle = document.getElementById('standby-title');
+  const standbySub = document.getElementById('standby-sub');
+  const standbyServerUrl = document.getElementById('standby-server-url');
+  const standbyDeviceName = document.getElementById('standby-device-name');
+  const standbyDeviceUuid = document.getElementById('standby-device-uuid');
 
   let activeLayer = layerA;
   let inactiveLayer = layerB;
@@ -47,21 +54,54 @@
       statusIndicator.className = isOnline ? 'status-dot' : 'status-dot offline';
 
       if (res.pairingPIN) {
+        hideStandbyScreen();
         showPairingScreen(res.pairingPIN, res.config);
         return;
       } else {
         hidePairingScreen();
       }
 
-      if (res.currentPlaylist) {
+      if (res.currentPlaylist && res.currentPlaylist.items && res.currentPlaylist.items.length > 0) {
+        hideStandbyScreen();
         if (!currentPlaylist || currentPlaylist.id !== res.currentPlaylist.id || currentPlaylist.updated_at !== res.currentPlaylist.updated_at) {
           currentPlaylist = res.currentPlaylist;
           currentSlideIndex = 0;
           playCurrentSlide();
         }
+      } else {
+        stopPlayback();
+        showStandbyScreen(res.config, isOnline);
       }
     } catch (e) {
       statusIndicator.className = 'status-dot offline';
+      showStandbyScreen(null, false);
+    }
+  }
+
+  function showStandbyScreen(cfg, isOnline) {
+    if (!standbyOverlay) return;
+    if (cfg) {
+      standbyDeviceName.innerText = cfg.name || 'Signage Display';
+      standbyDeviceUuid.innerText = (cfg.uuid || '').substring(0, 12) + '...';
+      standbyServerUrl.innerText = cfg.serverUrl || 'ws://server:8080/ws';
+    }
+    if (isOnline) {
+      standbyStatusBadge.innerText = '● Connected & Ready';
+      standbyStatusBadge.style.color = '#22c55e';
+      standbyTitle.innerText = 'Waiting for Playlist';
+      standbySub.innerText = 'This display is connected to the Orchestrator. Assign a playlist from the Web Dashboard to begin playback.';
+    } else {
+      standbyStatusBadge.innerText = '○ Connecting...';
+      standbyStatusBadge.style.color = '#f59e0b';
+      standbyTitle.innerText = 'Connecting to Orchestrator';
+      standbySub.innerText = 'Attempting connection to the server. Check your network or server URL configuration.';
+    }
+    standbyOverlay.classList.add('visible');
+  }
+
+  function hideStandbyScreen() {
+    if (standbyOverlay) {
+      standbyOverlay.classList.remove('visible');
     }
   }
 
