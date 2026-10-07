@@ -41,17 +41,19 @@
   function startClock() {
     function update() {
       const now = new Date();
-      hudClock.innerText = now.toLocaleTimeString('en-GB');
+      if (hudClock) hudClock.innerText = now.toLocaleTimeString('en-GB');
     }
-    setInterval(update, 1000);
-    update();
+    if (hudClock) {
+      setInterval(update, 1000);
+      update();
+    }
   }
 
   async function pollAgentState() {
     try {
       const res = await fetch('/api/agent/state').then(r => r.json());
       const isOnline = res.isOnline;
-      statusIndicator.className = isOnline ? 'status-dot' : 'status-dot offline';
+      if (statusIndicator) statusIndicator.className = isOnline ? 'status-dot' : 'status-dot offline';
 
       if (res.pairingPIN) {
         hideStandbyScreen();
