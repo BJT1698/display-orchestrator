@@ -51,6 +51,7 @@
   services.openssh = {
     enable = true;
     settings.PermitRootLogin = "yes";
+    settings.PermitEmptyPasswords = "yes";
   };
   users.users.root.initialHashedPassword = "";
 }

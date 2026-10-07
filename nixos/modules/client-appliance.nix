@@ -18,7 +18,12 @@ let
 
     mkdir -p "$CACHE_DIR/media"
 
-    exec ${pkgs.python3.withPackages (ps: [ ps.websockets ])}/bin/python3 ${clientDir}/agent/main.py
+    SCRIPT_PATH="${clientDir}/agent/main.py"
+    if [ -f /etc/signage/main.py ]; then
+      SCRIPT_PATH="/etc/signage/main.py"
+    fi
+
+    exec ${pkgs.python3.withPackages (ps: [ ps.websockets ])}/bin/python3 "$SCRIPT_PATH"
   '';
 in
 {

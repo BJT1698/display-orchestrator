@@ -157,7 +157,6 @@ def sync_playlist_media(playlist):
             else:
                 cloned["local_url"] = full_url
 
-        processed_items.push_url = url if "push_url" in item else None
         processed_items.append(cloned)
 
     local_playlist = dict(playlist)
