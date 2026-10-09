@@ -11,7 +11,6 @@
   isoImage.makeUsbBootable = true;
 
   networking.hostName = "signage-installer";
-  networking.wireless.enable = false;
   networking.networkmanager.enable = true;
 
   # Include flake source repository into ISO
