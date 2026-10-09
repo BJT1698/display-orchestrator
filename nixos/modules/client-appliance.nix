@@ -55,6 +55,16 @@ in
     extraArguments = [ "-s" ]; # Silent mode
   };
 
+  # The kiosk must come back on its own: Chromium can crash, e.g. when the last display goes away
+  # during a hotplug, and Cage exits with it
+  systemd.services.cage-tty1 = {
+    serviceConfig = {
+      Restart = "always";
+      RestartSec = "3s";
+    };
+    unitConfig.StartLimitIntervalSec = 0;
+  };
+
   # Screen sharing (WebRTC) from the dashboard: a fixed UDP range opened in the firewall, and the
   # kiosk announces its real LAN address instead of an mDNS name, so any sender on the LAN can reach it
   environment.etc."chromium/policies/managed/signage-webrtc.json".text = builtins.toJSON {

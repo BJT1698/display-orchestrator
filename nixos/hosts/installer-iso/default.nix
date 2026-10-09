@@ -13,6 +13,9 @@
 
   networking.hostName = "signage-installer";
 
+  # Needed to bring up Wi-Fi during installation
+  hardware.enableRedistributableFirmware = true;
+
   # The live ISO ships ZFS support but never imports a ZFS root; opt into the safer 26.11 default
   boot.zfs.forceImportRoot = false;
   networking.networkmanager.enable = true;
