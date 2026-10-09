@@ -257,7 +257,10 @@ class RemoteSession:
         try:
             x = float(data.get("x", 0)) * self.size[0]
             y = float(data.get("y", 0)) * self.size[1]
-            if kind == "click":
+            if kind == "move":
+                # Hover: menus and tooltips need the pointer to sit over them before a click
+                await self.send_cdp("Input.dispatchMouseEvent", {"type": "mouseMoved", "x": x, "y": y})
+            elif kind == "click":
                 base = {"x": x, "y": y, "button": "left", "clickCount": 1}
                 await self.send_cdp("Input.dispatchMouseEvent", {"type": "mouseMoved", "x": x, "y": y})
                 await self.send_cdp("Input.dispatchMouseEvent", {**base, "type": "mousePressed", "buttons": 1})

@@ -24,6 +24,7 @@ export function RemoteControlModal({ display, wsConnected, sendWs, subscribe, on
   const stageRef = useRef(null);
   const imgRef = useRef(null);
   const wheelRef = useRef({ dy: 0, x: 0.5, y: 0.5, timer: null });
+  const moveRef = useRef({ x: -1, y: -1, timer: null, pending: null });
   const uuid = display.uuid;
 
   const sendInput = useCallback((input) => sendWs({ type: 'REMOTE_INPUT', uuid, input }), [sendWs, uuid]);
@@ -66,6 +67,26 @@ export function RemoteControlModal({ display, wsConnected, sendWs, subscribe, on
       py: clientY - rect.top,
     };
   };
+
+  // Pointer position for hover effects; send at most every 50 ms and only when it changed
+  const handleMouseMove = (e) => {
+    if (!imgRef.current || status !== 'live') return;
+    const { x, y } = toFraction(e.clientX, e.clientY);
+    const m = moveRef.current;
+    m.pending = { x, y };
+    if (m.timer) return;
+    m.timer = setTimeout(() => {
+      const p = m.pending;
+      m.timer = null;
+      if (p && (Math.abs(p.x - m.x) > 0.001 || Math.abs(p.y - m.y) > 0.001)) {
+        m.x = p.x;
+        m.y = p.y;
+        sendInput({ kind: 'move', x: p.x, y: p.y });
+      }
+    }, 50);
+  };
+
+  useEffect(() => () => clearTimeout(moveRef.current.timer), []);
 
   const handleClick = (e) => {
     if (!imgRef.current || status !== 'live') return;
@@ -164,6 +185,7 @@ export function RemoteControlModal({ display, wsConnected, sendWs, subscribe, on
               src={frame}
               alt={`Live view of ${display.name}`}
               onClick={handleClick}
+              onMouseMove={handleMouseMove}
               draggable={false}
               className={`block max-w-full max-h-[calc(100vh-11rem)] border border-line select-none ${status === 'live' ? 'cursor-pointer' : 'opacity-50'}`}
             />
@@ -178,7 +200,7 @@ export function RemoteControlModal({ display, wsConnected, sendWs, subscribe, on
 
       <div className="shrink-0 border-t border-line bg-surface px-5 py-3 flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
         <p className="text-xs text-faint max-w-[70ch]">
-          Click and scroll on the image to use the page. While the view is focused, typing goes to the page; press Shift+Esc to leave.
+          Move, click and scroll on the image to use the page. While the view is focused, typing goes to the page; press Shift+Esc to leave.
         </p>
         <form onSubmit={sendText} className="flex gap-2 sm:w-96 shrink-0">
           <input
