@@ -31,6 +31,12 @@ jobs:
         working-directory: nixos
         run: nix flake check
 
+      - name: Build Installed Appliance System
+        working-directory: nixos
+        # The installer builds this on the device; fail here instead of during an install
+        run: |
+          nix build .#nixosConfigurations.target-system.config.system.build.toplevel -L --no-link
+
       - name: Build Installer ISO Image
         working-directory: nixos
         run: |
