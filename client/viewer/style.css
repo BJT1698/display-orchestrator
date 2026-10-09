@@ -116,7 +116,7 @@ html, body {
 
 /* ---------- Pushed page, blank, emergency ---------- */
 
-/* Stacking: playback < standby < pushed page < pairing < blank < emergency */
+/* Stacking: playback < standby < pushed page < shared screen < pairing < blank < emergency */
 #push-frame-container {
   position: fixed;
   inset: 0;
@@ -126,6 +126,16 @@ html, body {
 }
 #push-frame-container.visible { display: block; }
 #push-frame-container iframe { width: 100%; height: 100%; border: none; background: #fff; }
+
+#cast-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 78;
+  background: #000;
+  display: none;
+}
+#cast-overlay.visible { display: block; }
+#cast-overlay video { width: 100%; height: 100%; object-fit: contain; background: #000; }
 
 #blank-overlay {
   position: fixed;

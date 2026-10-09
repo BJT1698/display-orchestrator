@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RefreshCw, MoonStar, Sun, Globe, Trash2, RotateCw, Plus, MousePointerClick } from 'lucide-react';
+import { RefreshCw, MoonStar, Sun, Globe, Trash2, RotateCw, Plus, MousePointerClick, MonitorUp } from 'lucide-react';
 import { api } from '../services/api';
 import { PageHeader, EmptyState, Tally, formatDuration } from '../components/ui';
 
@@ -10,7 +10,8 @@ export function DisplaysView({
   onRefresh,
   onOpenPairing,
   onPushUrl,
-  onRemoteControl
+  onRemoteControl,
+  onShareScreen
 }) {
   const [selectedGroup, setSelectedGroup] = useState('all');
   const [loadingAction, setLoadingAction] = useState(null);
@@ -158,6 +159,15 @@ export function DisplaysView({
                           aria-label={`Control the browser on ${display.name}`}
                         >
                           <MousePointerClick className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => onShareScreen(display)}
+                          disabled={!isOnline}
+                          className="btn-icon"
+                          title="Share your screen"
+                          aria-label={`Share your screen to ${display.name}`}
+                        >
+                          <MonitorUp className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => onPushUrl(display)}

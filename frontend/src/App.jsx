@@ -14,6 +14,7 @@ import { EmergencyAlertModal } from './components/EmergencyAlertModal';
 import { PlaylistPreviewModal } from './components/PlaylistPreviewModal';
 import { MediaUploadModal } from './components/MediaUploadModal';
 import { RemoteControlModal } from './components/RemoteControlModal';
+import { useScreenCast, CastBar } from './components/ScreenCast';
 
 export function App() {
   const [currentTab, setCurrentTab] = useState('dashboard');
@@ -126,7 +127,7 @@ export function App() {
     };
 
     const handleWsMessage = (msg) => {
-      if (msg.type === 'REMOTE_FRAME' || msg.type === 'REMOTE_STATUS') {
+      if (msg.type.startsWith('REMOTE_') || msg.type.startsWith('CAST_')) {
         remoteListenersRef.current.forEach((listener) => listener(msg));
         return;
       }
@@ -178,6 +179,8 @@ export function App() {
       if (socket) socket.close();
     };
   }, [loadData]);
+
+  const cast = useScreenCast({ sendWs, subscribe: subscribeRemote, wsConnected });
 
   const navItems = [
     { id: 'dashboard', label: 'Overview', Icon: LayoutGrid },
@@ -246,6 +249,7 @@ export function App() {
       </aside>
 
       <main className="flex-1 min-w-0">
+        <CastBar session={cast.session} onStop={cast.stop} onDismiss={cast.dismiss} />
         <div className="md:hidden flex gap-2 px-4 pt-4">
           <button onClick={() => setIsPairingOpen(true)} className="btn btn-sm flex-1">
             <KeyRound className="w-4 h-4" /> Pair a display
@@ -281,6 +285,7 @@ export function App() {
               onOpenPairing={() => setIsPairingOpen(true)}
               onPushUrl={(d) => setPushUrlDisplay(d)}
               onRemoteControl={(d) => setRemoteDisplay(d)}
+              onShareScreen={(d) => cast.start(d)}
             />
           )}
 
