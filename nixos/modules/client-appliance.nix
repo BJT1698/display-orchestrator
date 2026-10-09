@@ -55,6 +55,10 @@ in
     extraArguments = [ "-s" ]; # Silent mode
   };
 
+  # tty1 belongs to the kiosk. A login prompt there is useless (root is locked, the first-boot
+  # wizard drives tty1 itself) and nixos-rebuild switch would start it, stopping Cage
+  systemd.services."getty@tty1".enable = false;
+
   # The kiosk must come back on its own: Chromium can crash, e.g. when the last display goes away
   # during a hotplug, and Cage exits with it
   systemd.services.cage-tty1 = {
