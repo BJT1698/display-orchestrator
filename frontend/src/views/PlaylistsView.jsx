@@ -1,6 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { PlaySquare, Plus, Trash2, Copy, Eye, ArrowUp, ArrowDown, Clock, Image as ImageIcon, Video, Globe, Code, Sparkles } from 'lucide-react';
+import { Plus, Trash2, Copy, Play, ArrowUp, ArrowDown, X } from 'lucide-react';
 import { api } from '../services/api';
+import { PageHeader, EmptyState, Modal, MediaTypeIcon, mediaTypeLabel, formatDuration } from '../components/ui';
+
+const TRANSITIONS = {
+  fade: 'Cross fade',
+  'slide-left': 'Slide left',
+  zoom: 'Zoom',
+  none: 'Cut',
+};
 
 export function PlaylistsView({
   playlists,
@@ -120,7 +128,7 @@ export function PlaylistsView({
   };
 
   const handleDeletePlaylist = async (id, name) => {
-    if (!confirm(`Delete playlist '${name}'?`)) return;
+    if (!confirm(`Delete the playlist '${name}'? Screens using it will fall back to their group default.`)) return;
     try {
       await api.deletePlaylist(id);
       setSelectedPlaylistId(null);
@@ -140,334 +148,240 @@ export function PlaylistsView({
     }
   };
 
+  const items = selectedPlaylist?.items || [];
+  const totalSeconds = items.reduce((sum, i) => sum + (Number(i.duration_seconds) || 0), 0);
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-black text-white">Playlist Builder & Sequencer</h1>
-          <p className="text-xs text-slate-400">Assemble content timelines with smooth GPU transitions</p>
-        </div>
-        <button
-          onClick={() => setIsCreating(true)}
-          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-emerald-950 flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" /> Create Playlist
+    <div>
+      <PageHeader title="Playlists" description="Build the sequence each screen loops through.">
+        <button onClick={() => setIsCreating(true)} className="btn btn-primary">
+          <Plus className="w-4 h-4" /> New playlist
         </button>
-      </div>
+      </PageHeader>
 
-      {/* Main 2-Column Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Playlists Sidebar */}
-        <div className="lg:col-span-4 space-y-3">
-          <div className="text-xs font-semibold uppercase tracking-wider text-slate-400 px-1">
-            Playlists ({playlists.length})
-          </div>
-
-          <div className="space-y-2">
-            {playlists.map((p) => {
-              const isSelected = selectedPlaylistId === p.id;
-              return (
-                <div
-                  key={p.id}
-                  onClick={() => setSelectedPlaylistId(p.id)}
-                  className={`p-4 rounded-2xl border transition cursor-pointer flex items-center justify-between ${
-                    isSelected
-                      ? 'bg-slate-800/90 border-emerald-500/50 shadow-lg'
-                      : 'glass-card hover:bg-slate-800/40 border-slate-800'
-                  }`}
-                >
-                  <div className="flex items-center gap-3 truncate">
-                    <div className={`p-2 rounded-xl ${isSelected ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-400'}`}>
-                      <PlaySquare className="w-5 h-5" />
-                    </div>
-                    <div className="truncate">
-                      <h4 className="font-bold text-white text-sm truncate">{p.name}</h4>
-                      <div className="text-[11px] text-slate-400">
-                        {p.item_count || 0} items &bull; {p.total_duration_seconds || 0}s loop
+      {playlists.length === 0 ? (
+        <EmptyState
+          title="No playlists yet"
+          action={<button onClick={() => setIsCreating(true)} className="btn btn-primary">New playlist</button>}
+        >
+          A playlist is an ordered list of media that plays on a loop. Create one, then assign it to screens or groups.
+        </EmptyState>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-[18rem_1fr] gap-6 items-start">
+          <nav className="panel overflow-hidden" aria-label="Playlists">
+            <ul className="divide-y divide-line">
+              {playlists.map((p) => {
+                const isSelected = selectedPlaylistId === p.id;
+                return (
+                  <li key={p.id} className={`group relative flex items-center ${isSelected ? 'bg-raised' : 'hover:bg-[#22252A]'}`}>
+                    {isSelected && <span className="absolute left-0 inset-y-0 w-0.5 bg-ink" aria-hidden="true" />}
+                    <button
+                      onClick={() => setSelectedPlaylistId(p.id)}
+                      aria-current={isSelected ? 'true' : undefined}
+                      className="flex-1 min-w-0 text-left px-4 py-3"
+                    >
+                      <div className={`text-sm truncate ${isSelected ? 'font-medium text-ink' : 'text-ink'}`}>{p.name}</div>
+                      <div className="text-xs text-faint mt-0.5">
+                        {p.item_count || 0} {p.item_count === 1 ? 'item' : 'items'}, {formatDuration(p.total_duration_seconds)} loop
                       </div>
+                    </button>
+                    <div className="flex items-center pr-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100">
+                      <button onClick={() => handleDuplicatePlaylist(p.id)} className="btn-icon" title="Duplicate" aria-label={`Duplicate ${p.name}`}>
+                        <Copy className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => handleDeletePlaylist(p.id, p.name)} className="btn-icon is-danger" title="Delete" aria-label={`Delete ${p.name}`}>
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
-                  </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </nav>
 
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDuplicatePlaylist(p.id);
-                      }}
-                      className="p-1.5 text-slate-400 hover:text-white"
-                      title="Duplicate"
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeletePlaylist(p.id, p.name);
-                      }}
-                      className="p-1.5 text-slate-400 hover:text-red-400"
-                      title="Delete"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Selected Playlist Timeline Editor */}
-        <div className="lg:col-span-8">
           {selectedPlaylist ? (
-            <div className="glass-panel p-6 rounded-2xl space-y-6">
-              {/* Header inside editor */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-800">
-                <div>
-                  <h2 className="text-xl font-black text-white">{selectedPlaylist.name}</h2>
-                  <p className="text-xs text-slate-400">
-                    Default transition: <strong className="text-emerald-400">{selectedPlaylist.transition_effect || 'fade'}</strong> &bull; Loop enabled
+            <section className="panel min-w-0">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-5 py-4 border-b border-line">
+                <div className="min-w-0">
+                  <h2 className="text-xl font-semibold text-ink truncate">{selectedPlaylist.name}</h2>
+                  <p className="text-sm text-muted mt-0.5">
+                    {items.length} {items.length === 1 ? 'item' : 'items'}, loops every {formatDuration(totalSeconds)}. Default transition: {TRANSITIONS[selectedPlaylist.transition_effect] || 'Cross fade'}.
                   </p>
                 </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => onPreviewPlaylist(selectedPlaylist)}
-                    className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-sky-950"
-                  >
-                    <Eye className="w-4 h-4" /> Live Preview
+                <div className="flex items-center gap-2 shrink-0">
+                  <button onClick={() => onPreviewPlaylist(selectedPlaylist)} disabled={items.length === 0} className="btn">
+                    <Play className="w-4 h-4" /> Preview
                   </button>
-
-                  <button
-                    onClick={() => setIsAddingItem(true)}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-2"
-                  >
-                    <Plus className="w-4 h-4" /> Add Slide
+                  <button onClick={() => setIsAddingItem(true)} className="btn btn-primary">
+                    <Plus className="w-4 h-4" /> Add item
                   </button>
                 </div>
               </div>
 
-              {/* Items Sequencer List */}
-              {selectedPlaylist.items && selectedPlaylist.items.length === 0 ? (
-                <div className="py-12 text-center text-slate-500">
-                  <PlaySquare className="w-12 h-12 mx-auto mb-2 opacity-40" />
-                  <p className="text-sm font-medium text-slate-400">Playlist is empty</p>
-                  <p className="text-xs text-slate-500 mt-1">Add media slides to build the sequence.</p>
+              {items.length === 0 ? (
+                <div className="px-5 py-14 text-center">
+                  <p className="text-sm text-ink">This playlist is empty.</p>
+                  <p className="text-sm text-muted mt-1">Add items from the media library to start the sequence.</p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {selectedPlaylist.items.map((item, index) => (
-                    <div
-                      key={item.id}
-                      className="p-3.5 bg-slate-950/70 border border-slate-800 rounded-xl flex items-center justify-between gap-4 hover:border-slate-700 transition"
-                    >
-                      {/* Order & Icon */}
-                      <div className="flex items-center gap-3">
-                        <div className="font-mono text-xs font-bold text-slate-500 w-5 text-center">
-                          {index + 1}
+                <>
+                  {/* Timeline: each segment is as wide as its share of the loop */}
+                  <div className="px-5 pt-5 pb-4">
+                    <div className="flex h-10 rounded-sm overflow-hidden bg-ground border border-line" role="img" aria-label="Loop timeline">
+                      {items.map((item, index) => (
+                        <div
+                          key={item.id}
+                          className="relative flex items-center px-2 min-w-[1.75rem] border-r border-line last:border-r-0 bg-raised text-xs text-muted overflow-hidden"
+                          style={{ flexGrow: Number(item.duration_seconds) || 1, flexBasis: 0 }}
+                          title={`${index + 1}. ${item.original_name || 'Item'}, ${item.duration_seconds}s`}
+                        >
+                          <span className="font-semibold text-ink mr-1.5">{index + 1}</span>
+                          <span className="truncate">{item.original_name}</span>
                         </div>
+                      ))}
+                    </div>
+                    <div className="flex justify-between mt-1.5 text-xs text-faint">
+                      <span>0s</span>
+                      <span>{formatDuration(totalSeconds)}</span>
+                    </div>
+                  </div>
 
-                        <div className="w-10 h-10 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-300 overflow-hidden">
-                          {item.media_type === 'image' && <ImageIcon className="w-5 h-5 text-emerald-400" />}
-                          {item.media_type === 'video' && <Video className="w-5 h-5 text-sky-400" />}
-                          {item.media_type === 'webpage' && <Globe className="w-5 h-5 text-amber-400" />}
-                          {item.media_type === 'html_snippet' && <Code className="w-5 h-5 text-purple-400" />}
-                        </div>
-
-                        <div>
-                          <div className="font-bold text-white text-sm">{item.original_name || 'Webpage Slide'}</div>
-                          <div className="text-[11px] text-slate-400">
-                            Type: <strong className="text-slate-300 uppercase">{item.media_type}</strong> &bull; Transition: {item.transition || 'fade'}
+                  <ol className="border-t border-line divide-y divide-line">
+                    {items.map((item, index) => (
+                      <li key={item.id} className="grid grid-cols-[2rem_1fr_auto] items-center gap-3 px-5 py-2.5">
+                        <span className="display text-lg font-semibold text-faint text-right">{index + 1}</span>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-14 aspect-video shrink-0 rounded-sm bg-black border border-line overflow-hidden flex items-center justify-center text-faint">
+                            {item.media_type === 'image' && item.url ? (
+                              <img src={item.url} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <MediaTypeIcon type={item.media_type} className="w-4 h-4" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-sm text-ink truncate">{item.original_name || 'Web page'}</div>
+                            <div className="text-xs text-faint">
+                              {mediaTypeLabel(item.media_type)}, {TRANSITIONS[item.transition] || 'Cross fade'}
+                            </div>
                           </div>
                         </div>
-                      </div>
-
-                      {/* Duration & Actions */}
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-1.5 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800">
-                          <Clock className="w-3.5 h-3.5 text-slate-400" />
-                          <input
-                            type="number"
-                            min="2"
-                            max="3600"
-                            value={item.duration_seconds}
-                            onChange={(e) => handleUpdateDuration(item.id, e.target.value)}
-                            className="w-12 bg-transparent text-xs font-mono text-white text-center focus:outline-none"
-                          />
-                          <span className="text-[10px] text-slate-500">sec</span>
-                        </div>
-
-                        {/* Reorder Up/Down */}
                         <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => handleMoveItem(index, -1)}
-                            disabled={index === 0}
-                            className="p-1 text-slate-400 hover:text-white disabled:opacity-20"
-                          >
+                          <label className="flex items-center gap-1.5 mr-2">
+                            <input
+                              key={`${item.id}-${item.duration_seconds}`}
+                              type="number"
+                              min="2"
+                              max="3600"
+                              defaultValue={item.duration_seconds}
+                              onBlur={(e) => {
+                                if (String(e.target.value) !== String(item.duration_seconds)) handleUpdateDuration(item.id, e.target.value);
+                              }}
+                              className="control h-8 w-20 text-right"
+                              aria-label={`Duration of item ${index + 1} in seconds`}
+                            />
+                            <span className="text-xs text-faint">s</span>
+                          </label>
+                          <button onClick={() => handleMoveItem(index, -1)} disabled={index === 0} className="btn-icon" aria-label="Move up">
                             <ArrowUp className="w-4 h-4" />
                           </button>
-                          <button
-                            onClick={() => handleMoveItem(index, 1)}
-                            disabled={index === selectedPlaylist.items.length - 1}
-                            className="p-1 text-slate-400 hover:text-white disabled:opacity-20"
-                          >
+                          <button onClick={() => handleMoveItem(index, 1)} disabled={index === items.length - 1} className="btn-icon" aria-label="Move down">
                             <ArrowDown className="w-4 h-4" />
                           </button>
+                          <button onClick={() => handleRemoveItem(item.id)} className="btn-icon is-danger" aria-label="Remove from playlist" title="Remove from playlist">
+                            <X className="w-4 h-4" />
+                          </button>
                         </div>
-
-                        <button
-                          onClick={() => handleRemoveItem(item.id)}
-                          className="p-1.5 text-slate-500 hover:text-red-400 transition"
-                          title="Remove item"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                      </li>
+                    ))}
+                  </ol>
+                </>
               )}
-            </div>
+            </section>
           ) : (
-            <div className="glass-panel p-12 rounded-2xl text-center text-slate-500">
-              Select or create a playlist to configure its timeline.
-            </div>
+            <div className="panel px-6 py-14 text-center text-sm text-muted">Select a playlist to edit it.</div>
           )}
-        </div>
-      </div>
-
-      {/* Modal: Create Playlist */}
-      {isCreating && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl">
-            <h3 className="text-lg font-bold text-white mb-4">Create New Playlist</h3>
-            <form onSubmit={handleCreatePlaylist} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
-                  Playlist Name
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Lobby Morning Loop"
-                  value={newPlaylistName}
-                  onChange={(e) => setNewPlaylistName(e.target.value)}
-                  required
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
-                  Default Transition Animation
-                </label>
-                <select
-                  value={newPlaylistTransition}
-                  onChange={(e) => setNewPlaylistTransition(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"
-                >
-                  <option value="fade">Cross Fade (Default)</option>
-                  <option value="slide-left">Slide Left</option>
-                  <option value="zoom">Zoom Scale</option>
-                  <option value="none">Instant Cut</option>
-                </select>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsCreating(false)}
-                  className="px-4 py-2 text-sm text-slate-400 hover:text-white"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-medium text-sm transition"
-                >
-                  Create
-                </button>
-              </div>
-            </form>
-          </div>
         </div>
       )}
 
-      {/* Modal: Add Item to Playlist */}
+      {isCreating && (
+        <Modal
+          title="New playlist"
+          onClose={() => setIsCreating(false)}
+          width="max-w-md"
+          footer={
+            <>
+              <button type="button" onClick={() => setIsCreating(false)} className="btn btn-quiet">Cancel</button>
+              <button type="submit" form="create-playlist" className="btn btn-primary">Create playlist</button>
+            </>
+          }
+        >
+          <form id="create-playlist" onSubmit={handleCreatePlaylist} className="space-y-4">
+            <div>
+              <label className="field-label" htmlFor="pl-name">Name</label>
+              <input
+                id="pl-name"
+                type="text"
+                placeholder="Reception, morning"
+                value={newPlaylistName}
+                onChange={(e) => setNewPlaylistName(e.target.value)}
+                required
+                autoFocus
+                className="control"
+              />
+            </div>
+            <div>
+              <label className="field-label" htmlFor="pl-transition">Default transition</label>
+              <select id="pl-transition" value={newPlaylistTransition} onChange={(e) => setNewPlaylistTransition(e.target.value)} className="control">
+                {Object.entries(TRANSITIONS).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            </div>
+          </form>
+        </Modal>
+      )}
+
       {isAddingItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl">
-            <h3 className="text-lg font-bold text-white mb-4">Add Media Slide to Playlist</h3>
-            <form onSubmit={handleAddItem} className="space-y-4">
+        <Modal
+          title="Add to playlist"
+          description={selectedPlaylist?.name}
+          onClose={() => setIsAddingItem(false)}
+          footer={
+            <>
+              <button type="button" onClick={() => setIsAddingItem(false)} className="btn btn-quiet">Cancel</button>
+              <button type="submit" form="add-item" disabled={!selectedMediaId} className="btn btn-primary">Add item</button>
+            </>
+          }
+        >
+          <form id="add-item" onSubmit={handleAddItem} className="space-y-4">
+            <div>
+              <label className="field-label" htmlFor="item-media">Media</label>
+              <select id="item-media" value={selectedMediaId} onChange={(e) => setSelectedMediaId(e.target.value)} required className="control">
+                <option value="">Choose from the library</option>
+                {mediaList.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.original_name} ({mediaTypeLabel(m.media_type)})
+                  </option>
+                ))}
+              </select>
+              {mediaList.length === 0 && <p className="field-hint">The media library is empty. Add media first.</p>}
+            </div>
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
-                  Select Media Asset
-                </label>
-                <select
-                  value={selectedMediaId}
-                  onChange={(e) => setSelectedMediaId(e.target.value)}
-                  required
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"
-                >
-                  <option value="">-- Choose from Media Library ({mediaList.length} items) --</option>
-                  {mediaList.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      [{m.media_type.toUpperCase()}] {m.original_name} ({m.duration_seconds}s)
-                    </option>
+                <label className="field-label" htmlFor="item-duration">Duration in seconds</label>
+                <input id="item-duration" type="number" min="2" max="600" value={itemDuration} onChange={(e) => setItemDuration(e.target.value)} className="control" />
+              </div>
+              <div>
+                <label className="field-label" htmlFor="item-transition">Transition</label>
+                <select id="item-transition" value={itemTransition} onChange={(e) => setItemTransition(e.target.value)} className="control">
+                  {Object.entries(TRANSITIONS).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
                   ))}
                 </select>
               </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
-                    Duration (Seconds)
-                  </label>
-                  <input
-                    type="number"
-                    min="2"
-                    max="600"
-                    value={itemDuration}
-                    onChange={(e) => setItemDuration(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
-                    Transition Effect
-                  </label>
-                  <select
-                    value={itemTransition}
-                    onChange={(e) => setItemTransition(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white"
-                  >
-                    <option value="fade">Cross Fade</option>
-                    <option value="slide-left">Slide Left</option>
-                    <option value="zoom">Zoom Scale</option>
-                    <option value="none">Instant</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsAddingItem(false)}
-                  className="px-4 py-2 text-sm text-slate-400 hover:text-white"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={!selectedMediaId}
-                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-medium text-sm transition disabled:opacity-50"
-                >
-                  Add Slide
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+            </div>
+          </form>
+        </Modal>
       )}
     </div>
   );

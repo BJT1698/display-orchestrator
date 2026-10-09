@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Tv, RefreshCw, Moon, Sun, Globe, Trash2, Smartphone, Monitor, Shield, Settings, PlaySquare } from 'lucide-react';
+import { RefreshCw, MoonStar, Sun, Globe, Trash2, RotateCw, Plus } from 'lucide-react';
 import { api } from '../services/api';
+import { PageHeader, EmptyState, Tally, formatDuration } from '../components/ui';
 
 export function DisplaysView({
   displays,
@@ -11,7 +12,6 @@ export function DisplaysView({
   onPushUrl
 }) {
   const [selectedGroup, setSelectedGroup] = useState('all');
-  const [editingDisplay, setEditingDisplay] = useState(null);
   const [loadingAction, setLoadingAction] = useState(null);
 
   const filteredDisplays = displays.filter((d) => {
@@ -36,7 +36,7 @@ export function DisplaysView({
       await api.updateDisplay(displayId, { currentPlaylistId: playlistId ? parseInt(playlistId, 10) : null });
       onRefresh && onRefresh();
     } catch (err) {
-      alert('Failed to assign playlist: ' + err.message);
+      alert('Could not assign the playlist: ' + err.message);
     }
   };
 
@@ -46,178 +46,169 @@ export function DisplaysView({
       await api.updateDisplay(display.id, { orientation: nextOrientation });
       onRefresh && onRefresh();
     } catch (err) {
-      alert('Failed to update orientation: ' + err.message);
+      alert('Could not change the orientation: ' + err.message);
     }
   };
 
   const handleDeleteDisplay = async (display) => {
-    if (!confirm(`Are you sure you want to delete '${display.name}'?`)) return;
+    if (!confirm(`Remove '${display.name}'? The screen will need to be paired again.`)) return;
     try {
       await api.deleteDisplay(display.id);
       onRefresh && onRefresh();
     } catch (err) {
-      alert('Failed to delete: ' + err.message);
+      alert('Could not remove the display: ' + err.message);
     }
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header & Filter Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-black text-white">Display Nodes</h1>
-          <p className="text-xs text-slate-400">Manage real-time digital signage screens and appliances</p>
-        </div>
+    <div>
+      <PageHeader title="Displays" description="Every paired screen, what it plays, and quick controls.">
+        <select
+          value={selectedGroup}
+          onChange={(e) => setSelectedGroup(e.target.value)}
+          className="control w-auto min-w-44"
+          aria-label="Filter by group"
+        >
+          <option value="all">All groups</option>
+          {groups.map((g) => (
+            <option key={g.id} value={g.id}>{g.name}</option>
+          ))}
+        </select>
+        <button onClick={onOpenPairing} className="btn btn-primary">
+          <Plus className="w-4 h-4" /> Pair a display
+        </button>
+      </PageHeader>
 
-        <div className="flex items-center gap-3">
-          <select
-            value={selectedGroup}
-            onChange={(e) => setSelectedGroup(e.target.value)}
-            className="bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-          >
-            <option value="all">All Groups ({displays.length})</option>
-            {groups.map((g) => (
-              <option key={g.id} value={g.id}>Group: {g.name}</option>
-            ))}
-          </select>
-
-          <button
-            onClick={onOpenPairing}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-emerald-950"
-          >
-            + Pair Screen
-          </button>
-        </div>
-      </div>
-
-      {/* Grid of Displays */}
       {filteredDisplays.length === 0 ? (
-        <div className="glass-panel p-12 rounded-2xl text-center">
-          <Tv className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-          <h3 className="text-base font-semibold text-white">No displays found in this view</h3>
-          <p className="text-xs text-slate-400 mt-1">Connect or pair a display node to control it here.</p>
-        </div>
+        <EmptyState
+          title={displays.length === 0 ? 'No screens yet' : 'No screens in this group'}
+          action={displays.length === 0 && (
+            <button onClick={onOpenPairing} className="btn btn-primary">Pair a display</button>
+          )}
+        >
+          {displays.length === 0
+            ? 'Start a signage player pointed to this server, then approve the code it shows.'
+            : 'Assign screens to this group while pairing them, or pick another group.'}
+        </EmptyState>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {filteredDisplays.map((display) => {
-            const isOnline = display.status === 'online';
-            const metrics = display.metrics || {};
+        <div className="panel overflow-x-auto">
+          <table className="data-table min-w-[960px]">
+            <thead>
+              <tr>
+                <th>Screen</th>
+                <th>Group</th>
+                <th className="w-64">Playlist</th>
+                <th>Orientation</th>
+                <th>Player</th>
+                <th className="text-right">Controls</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredDisplays.map((display) => {
+                const isOnline = display.status === 'online';
+                const metrics = display.metrics || {};
+                const busy = (a) => loadingAction === `${display.id}-${a}`;
 
-            return (
-              <div
-                key={display.id}
-                className="glass-card rounded-2xl overflow-hidden border border-slate-800 transition hover:border-slate-700 shadow-xl flex flex-col"
-              >
-                {/* Display Header */}
-                <div className="p-5 bg-slate-900/50 border-b border-slate-800/80 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <div className="p-2.5 bg-slate-800 rounded-xl text-slate-300">
-                        {display.orientation === 'portrait' ? (
-                          <Smartphone className="w-5 h-5 text-sky-400" />
-                        ) : (
-                          <Monitor className="w-5 h-5 text-emerald-400" />
-                        )}
+                return (
+                  <tr key={display.id}>
+                    <td>
+                      <div className="flex items-center gap-3">
+                        <Tally status={isOnline ? 'online' : 'offline'} />
+                        <div className="min-w-0">
+                          <div className="font-medium text-ink truncate">{display.name}</div>
+                          <div className="text-xs text-faint">
+                            {isOnline ? 'Online' : 'Offline'}{display.ip_address ? `, ${display.ip_address}` : ''}
+                          </div>
+                        </div>
                       </div>
-                      <span
-                        className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-slate-900 ${
-                          isOnline ? 'bg-emerald-400 glow-online' : 'bg-slate-600'
-                        }`}
-                      />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-white text-sm">{display.name}</h3>
-                      <div className="text-[11px] text-slate-400 font-mono">
-                        IP: {display.ip_address || '127.0.0.1'} &bull; {display.orientation || 'landscape'}
+                    </td>
+                    <td className="text-muted">{display.group_name || 'None'}</td>
+                    <td>
+                      <select
+                        value={display.current_playlist_id || ''}
+                        onChange={(e) => handleAssignPlaylist(display.id, e.target.value)}
+                        className="control h-8"
+                        aria-label={`Playlist for ${display.name}`}
+                      >
+                        <option value="">Group default</option>
+                        {playlists.map((p) => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="text-muted capitalize">{display.orientation || 'landscape'}</td>
+                    <td className="text-xs text-muted whitespace-nowrap">
+                      {isOnline && metrics.uptimeSeconds ? (
+                        <>
+                          <div>Up {formatDuration(metrics.uptimeSeconds)}</div>
+                          {metrics.memUsedMb && <div className="text-faint">{metrics.memUsedMb} of {metrics.memTotalMb} MB</div>}
+                        </>
+                      ) : (
+                        <span className="text-faint">No data</span>
+                      )}
+                    </td>
+                    <td>
+                      <div className="flex items-center justify-end gap-0.5">
+                        <button
+                          onClick={() => onPushUrl(display)}
+                          disabled={!isOnline}
+                          className="btn-icon"
+                          title="Show a web page for a while"
+                          aria-label={`Show a web page on ${display.name}`}
+                        >
+                          <Globe className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleCommand(display.id, 'reload')}
+                          disabled={!isOnline || busy('reload')}
+                          className="btn-icon"
+                          title="Reload the player"
+                          aria-label={`Reload ${display.name}`}
+                        >
+                          <RefreshCw className={`w-4 h-4 ${busy('reload') ? 'animate-spin' : ''}`} />
+                        </button>
+                        <button
+                          onClick={() => handleToggleOrientation(display)}
+                          className="btn-icon"
+                          title="Switch orientation"
+                          aria-label={`Switch orientation of ${display.name}`}
+                        >
+                          <RotateCw className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleCommand(display.id, 'blank', { state: true })}
+                          disabled={!isOnline || busy('blank')}
+                          className="btn-icon"
+                          title="Blank the screen"
+                          aria-label={`Blank ${display.name}`}
+                        >
+                          <MoonStar className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleCommand(display.id, 'blank', { state: false })}
+                          disabled={!isOnline || busy('blank')}
+                          className="btn-icon"
+                          title="Turn the screen back on"
+                          aria-label={`Turn ${display.name} back on`}
+                        >
+                          <Sun className="w-4 h-4" />
+                        </button>
+                        <span className="w-px h-5 bg-line mx-1.5" aria-hidden="true" />
+                        <button
+                          onClick={() => handleDeleteDisplay(display)}
+                          className="btn-icon is-danger"
+                          title="Remove display"
+                          aria-label={`Remove ${display.name}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => handleDeleteDisplay(display)}
-                    className="text-slate-500 hover:text-red-400 p-1.5 transition"
-                    title="Delete display"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-
-                {/* Body Details */}
-                <div className="p-5 flex-1 space-y-4">
-                  {/* Playlist selector */}
-                  <div>
-                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
-                      Active Playlist Assignment
-                    </label>
-                    <select
-                      value={display.current_playlist_id || ''}
-                      onChange={(e) => handleAssignPlaylist(display.id, e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                    >
-                      <option value="">-- Inherit Group Default Playlist --</option>
-                      {playlists.map((p) => (
-                        <option key={p.id} value={p.id}>{p.name} ({p.item_count || 0} items)</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Hardware / Telemetry Metrics */}
-                  <div className="grid grid-cols-2 gap-2 text-xs bg-slate-950/60 p-3 rounded-xl border border-slate-800/60">
-                    <div>
-                      <span className="text-slate-500 block text-[10px] uppercase">Memory Load</span>
-                      <span className="font-mono text-slate-200">
-                        {metrics.memUsedMb ? `${metrics.memUsedMb} MB / ${metrics.memTotalMb} MB` : 'N/A'}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 block text-[10px] uppercase">Client Uptime</span>
-                      <span className="font-mono text-slate-200">
-                        {metrics.uptimeSeconds ? `${Math.floor(metrics.uptimeSeconds / 60)} min` : 'Offline'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Quick Action Buttons */}
-                <div className="p-3 bg-slate-950/80 border-t border-slate-800 flex items-center justify-between gap-1.5">
-                  <button
-                    onClick={() => onPushUrl(display)}
-                    disabled={!isOnline}
-                    className="flex-1 py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1.5 transition disabled:opacity-40"
-                    title="Push temporary live URL"
-                  >
-                    <Globe className="w-3.5 h-3.5 text-sky-400" /> Push URL
-                  </button>
-
-                  <button
-                    onClick={() => handleCommand(display.id, 'reload')}
-                    disabled={!isOnline}
-                    className="flex-1 py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1.5 transition disabled:opacity-40"
-                    title="Force reload player"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5 text-emerald-400" /> Reload
-                  </button>
-
-                  <button
-                    onClick={() => handleToggleOrientation(display)}
-                    className="flex-1 py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1.5 transition"
-                    title="Toggle Orientation"
-                  >
-                    <Smartphone className="w-3.5 h-3.5 text-purple-400" /> Rotate
-                  </button>
-
-                  <button
-                    onClick={() => handleCommand(display.id, 'blank', { state: true })}
-                    disabled={!isOnline}
-                    className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white rounded-lg text-[11px] transition disabled:opacity-40"
-                    title="Blank Screen"
-                  >
-                    <Moon className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

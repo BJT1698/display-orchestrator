@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Calendar, Plus, Trash2, Clock, CheckCircle2, X } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { api } from '../services/api';
+import { PageHeader, EmptyState, Modal } from '../components/ui';
 
 export function SchedulesView({
   schedules,
@@ -47,12 +48,12 @@ export function SchedulesView({
       setIsCreating(false);
       onRefresh && onRefresh();
     } catch (err) {
-      alert('Failed to create schedule: ' + err.message);
+      alert('Could not save the rule: ' + err.message);
     }
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Delete this scheduling rule?')) return;
+    if (!confirm('Delete this rule?')) return;
     try {
       await api.deleteSchedule(id);
       onRefresh && onRefresh();
@@ -62,216 +63,161 @@ export function SchedulesView({
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-black text-white">Content Scheduling</h1>
-          <p className="text-xs text-slate-400">Automate playlist switching based on time of day and week days</p>
-        </div>
-
-        <button
-          onClick={() => setIsCreating(true)}
-          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-emerald-950 flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" /> Add Schedule Rule
+    <div>
+      <PageHeader
+        title="Schedules"
+        description="Switch playlists automatically by time of day and day of the week. When rules overlap, the higher priority wins."
+      >
+        <button onClick={() => setIsCreating(true)} className="btn btn-primary">
+          <Plus className="w-4 h-4" /> New rule
         </button>
-      </div>
+      </PageHeader>
 
-      {/* Rules List */}
       {schedules.length === 0 ? (
-        <div className="glass-panel p-12 rounded-2xl text-center">
-          <Calendar className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-          <h3 className="text-base font-semibold text-white">No schedules configured</h3>
-          <p className="text-xs text-slate-400 mt-1 mb-4">
-            Screens currently play their directly assigned or group default playlist.
-          </p>
-          <button
-            onClick={() => setIsCreating(true)}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition"
-          >
-            Create Rule
-          </button>
-        </div>
+        <EmptyState
+          title="No rules yet"
+          action={<button onClick={() => setIsCreating(true)} className="btn btn-primary">New rule</button>}
+        >
+          Without rules, each screen plays the playlist assigned to it, or its group default.
+        </EmptyState>
       ) : (
-        <div className="space-y-3">
-          {schedules.map((rule) => (
-            <div
-              key={rule.id}
-              className="glass-card p-4 rounded-xl border border-slate-800 flex items-center justify-between gap-4"
-            >
-              <div className="flex items-center gap-4">
-                <div className="p-2.5 bg-emerald-500/10 rounded-xl text-emerald-400">
-                  <Clock className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-white text-sm">
-                      {rule.playlist_name || `Playlist #${rule.playlist_id}`}
-                    </span>
-                    <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-emerald-400">
-                      Target: {rule.target_name} ({rule.target_type})
-                    </span>
-                  </div>
-                  <div className="text-xs text-slate-400 mt-1 flex items-center gap-3">
-                    <span>🕒 {rule.start_time} - {rule.end_time}</span>
-                    <span>&bull;</span>
-                    <span>Days: {rule.days_of_week ? rule.days_of_week.map((d) => dayNames[d - 1]).join(', ') : 'All'}</span>
-                    <span>&bull;</span>
-                    <span>Priority: {rule.priority}</span>
-                  </div>
-                </div>
-              </div>
-
-              <button
-                onClick={() => handleDelete(rule.id)}
-                className="p-2 text-slate-500 hover:text-red-400 transition"
-                title="Delete rule"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-          ))}
+        <div className="panel overflow-x-auto">
+          <table className="data-table min-w-[820px]">
+            <thead>
+              <tr>
+                <th>Playlist</th>
+                <th>Plays on</th>
+                <th>Time</th>
+                <th>Days</th>
+                <th className="text-right">Priority</th>
+                <th className="w-12"><span className="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {schedules.map((rule) => {
+                const days = rule.days_of_week && rule.days_of_week.length ? rule.days_of_week : [1, 2, 3, 4, 5, 6, 7];
+                return (
+                  <tr key={rule.id}>
+                    <td className="font-medium text-ink">{rule.playlist_name || `Playlist ${rule.playlist_id}`}</td>
+                    <td>
+                      <div className={rule.target_name ? 'text-ink' : 'text-faint'}>{rule.target_name || (rule.target_type === 'group' ? 'Deleted group' : 'Removed screen')}</div>
+                      <div className="text-xs text-faint">{rule.target_type === 'group' ? 'Group' : 'Single screen'}</div>
+                    </td>
+                    <td className="whitespace-nowrap text-ink">{rule.start_time} to {rule.end_time}</td>
+                    <td>
+                      <div className="flex gap-0.5" aria-label={days.map((d) => dayNames[d - 1]).join(', ')}>
+                        {dayNames.map((name, idx) => {
+                          const on = days.includes(idx + 1);
+                          return (
+                            <span
+                              key={name}
+                              className={`w-7 h-6 inline-flex items-center justify-center rounded-sm text-xs ${
+                                on ? 'bg-ink text-ground font-semibold' : 'bg-ground text-faint border border-line'
+                              }`}
+                            >
+                              {name.charAt(0)}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </td>
+                    <td className="text-right text-ink">{rule.priority}</td>
+                    <td className="text-right">
+                      <button onClick={() => handleDelete(rule.id)} className="btn-icon is-danger" title="Delete rule" aria-label="Delete rule">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
-      {/* Modal: Create Schedule */}
       {isCreating && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
-            <button onClick={() => setIsCreating(false)} className="absolute top-5 right-5 text-slate-400 hover:text-white">
-              <X className="w-5 h-5" />
-            </button>
+        <Modal
+          title="New schedule rule"
+          onClose={() => setIsCreating(false)}
+          footer={
+            <>
+              <button type="button" onClick={() => setIsCreating(false)} className="btn btn-quiet">Cancel</button>
+              <button type="submit" form="create-schedule" disabled={!targetId || !playlistId || daysOfWeek.length === 0} className="btn btn-primary">
+                Save rule
+              </button>
+            </>
+          }
+        >
+          <form id="create-schedule" onSubmit={handleCreateSchedule} className="space-y-4">
+            <div>
+              <label className="field-label" htmlFor="sc-playlist">Playlist</label>
+              <select id="sc-playlist" value={playlistId} onChange={(e) => setPlaylistId(e.target.value)} required className="control">
+                <option value="">Choose a playlist</option>
+                {playlists.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
 
-            <h3 className="text-lg font-bold text-white mb-4">New Time Schedule Rule</h3>
-
-            <form onSubmit={handleCreateSchedule} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
-                    Target Type
-                  </label>
-                  <select
-                    value={targetType}
-                    onChange={(e) => {
-                      setTargetType(e.target.value);
-                      setTargetId('');
-                    }}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
-                  >
-                    <option value="group">Display Group</option>
-                    <option value="display">Single Display</option>
-                  </select>
+            <div>
+              <span className="field-label">Plays on</span>
+              <div className="grid grid-cols-[auto_1fr] gap-2">
+                <div className="segmented" role="group" aria-label="Target type">
+                  <button type="button" aria-pressed={targetType === 'group'} onClick={() => { setTargetType('group'); setTargetId(''); }}>
+                    Group
+                  </button>
+                  <button type="button" aria-pressed={targetType === 'display'} onClick={() => { setTargetType('display'); setTargetId(''); }}>
+                    Screen
+                  </button>
                 </div>
-
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
-                    Target Destination
-                  </label>
-                  <select
-                    value={targetId}
-                    onChange={(e) => setTargetId(e.target.value)}
-                    required
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
-                  >
-                    <option value="">-- Choose Target --</option>
-                    {targetType === 'group'
-                      ? groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)
-                      : displays.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
-                  Playlist to Play
-                </label>
-                <select
-                  value={playlistId}
-                  onChange={(e) => setPlaylistId(e.target.value)}
-                  required
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
-                >
-                  <option value="">-- Choose Playlist --</option>
-                  {playlists.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name} ({p.item_count || 0} items)</option>
-                  ))}
+                <select value={targetId} onChange={(e) => setTargetId(e.target.value)} required className="control" aria-label={targetType === 'group' ? 'Group' : 'Screen'}>
+                  <option value="">{targetType === 'group' ? 'Choose a group' : 'Choose a screen'}</option>
+                  {targetType === 'group'
+                    ? groups.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)
+                    : displays.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
                 </select>
               </div>
+            </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
-                    Start Time
-                  </label>
-                  <input
-                    type="time"
-                    value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
-                    required
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
-                    End Time
-                  </label>
-                  <input
-                    type="time"
-                    value={endTime}
-                    onChange={(e) => setEndTime(e.target.value)}
-                    required
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white"
-                  />
-                </div>
-              </div>
-
+            <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
-                  Active Days
-                </label>
-                <div className="flex gap-1.5">
-                  {dayNames.map((name, idx) => {
-                    const dayNum = idx + 1;
-                    const isSelected = daysOfWeek.includes(dayNum);
-                    return (
-                      <button
-                        key={dayNum}
-                        type="button"
-                        onClick={() => toggleDay(dayNum)}
-                        className={`flex-1 py-1.5 text-xs font-bold rounded-lg border transition ${
-                          isSelected
-                            ? 'bg-emerald-600 border-emerald-500 text-white'
-                            : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
-                        }`}
-                      >
-                        {name}
-                      </button>
-                    );
-                  })}
-                </div>
+                <label className="field-label" htmlFor="sc-start">From</label>
+                <input id="sc-start" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} required className="control" />
               </div>
+              <div>
+                <label className="field-label" htmlFor="sc-end">To</label>
+                <input id="sc-end" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} required className="control" />
+              </div>
+              <div>
+                <label className="field-label" htmlFor="sc-priority">Priority</label>
+                <input id="sc-priority" type="number" min="1" max="100" value={priority} onChange={(e) => setPriority(e.target.value)} className="control" />
+              </div>
+            </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsCreating(false)}
-                  className="px-4 py-2 text-sm text-slate-400 hover:text-white"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={!targetId || !playlistId}
-                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-medium text-sm transition"
-                >
-                  Save Schedule
-                </button>
+            <div>
+              <span className="field-label">Days</span>
+              <div className="grid grid-cols-7 gap-1" role="group" aria-label="Days">
+                {dayNames.map((name, idx) => {
+                  const dayNum = idx + 1;
+                  const isSelected = daysOfWeek.includes(dayNum);
+                  return (
+                    <button
+                      key={dayNum}
+                      type="button"
+                      aria-pressed={isSelected}
+                      onClick={() => toggleDay(dayNum)}
+                      className={`h-9 rounded text-sm border transition-colors ${
+                        isSelected ? 'bg-ink border-ink text-ground font-semibold' : 'bg-ground border-line text-muted hover:text-ink hover:border-line-strong'
+                      }`}
+                    >
+                      {name}
+                    </button>
+                  );
+                })}
               </div>
-            </form>
-          </div>
-        </div>
+            </div>
+          </form>
+        </Modal>
       )}
     </div>
   );

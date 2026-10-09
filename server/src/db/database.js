@@ -45,32 +45,21 @@ function seedInitialData(db) {
 
     // 1. Welcome Card
     const welcomeHtml = `
-      <div style="width:100%;height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;background:radial-gradient(ellipse at center, #1e293b 0%, #0f172a 100%);color:#f8fafc;font-family:system-ui,sans-serif;text-align:center;padding:40px;box-sizing:border-box;">
-        <div style="display:inline-flex;padding:12px 24px;background:rgba(34,197,94,0.15);border:1px solid rgba(34,197,94,0.4);border-radius:9999px;color:#4ade80;font-weight:600;font-size:1.1rem;margin-bottom:24px;letter-spacing:0.05em;text-transform:uppercase;">
-          ✓ Display Orchestrator Active
-        </div>
-        <h1 style="font-size:3.5rem;font-weight:800;margin:0 0 16px 0;letter-spacing:-0.03em;background:linear-gradient(135deg, #ffffff 0%, #94a3b8 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">
-          Welcome to Digital Signage
-        </h1>
-        <p style="font-size:1.4rem;color:#94a3b8;max-width:800px;line-height:1.6;margin:0 0 32px 0;">
-          This screen is remotely managed in real-time. Change playlists, broadcast emergency messages, and monitor status from the Web Orchestrator.
+      <style>
+        @font-face{font-family:'Archivo Player';font-weight:100 900;font-stretch:62% 125%;src:url(fonts/archivo-latin-standard-normal.woff2) format('woff2-variations');}
+      </style>
+      <div style="position:relative;width:100%;height:100%;display:flex;flex-direction:column;justify-content:center;background:#16181C;color:#E6E8EB;font-family:'Archivo Player','Archivo Variable',system-ui,sans-serif;padding:8vmin;box-sizing:border-box;">
+        <div style="position:absolute;inset:0 0 auto 0;height:0.8vmin;background:#3FB37F;"></div>
+        <h1 style="margin:0;font-size:9vmin;font-stretch:80%;font-weight:650;line-height:1;letter-spacing:-0.01em;">This screen is ready</h1>
+        <p style="margin:3vmin 0 0;max-width:36ch;font-size:3.2vmin;line-height:1.35;color:#9AA1AB;">
+          Its content is managed in Signage Control. Replace this demo playlist with your own to get started.
         </p>
-        <div style="display:flex;gap:16px;">
-          <div style="background:rgba(255,255,255,0.05);padding:16px 28px;border-radius:12px;border:1px solid rgba(255,255,255,0.1);">
-            <div style="font-size:0.85rem;color:#64748b;text-transform:uppercase;font-weight:600;">Status</div>
-            <div style="font-size:1.25rem;font-weight:700;color:#22c55e;">Ready & Connected</div>
-          </div>
-          <div style="background:rgba(255,255,255,0.05);padding:16px 28px;border-radius:12px;border:1px solid rgba(255,255,255,0.1);">
-            <div style="font-size:0.85rem;color:#64748b;text-transform:uppercase;font-weight:600;">Engine</div>
-            <div style="font-size:1.25rem;font-weight:700;color:#38bdf8;">GPU Accelerated</div>
-          </div>
-        </div>
       </div>
     `;
 
     const m1 = insertMedia.run(
       'welcome_card.html',
-      'Welcome Screen',
+      'Welcome screen',
       '',
       'html_snippet',
       'text/html',
@@ -81,47 +70,26 @@ function seedInitialData(db) {
 
     // 2. Live World Clock & Metric Dashboard Widget
     const clockHtml = `
-      <div style="width:100%;height:100%;display:flex;flex-direction:column;justify-content:space-between;background:linear-gradient(135deg, #090d16 0%, #111827 50%, #0c1524 100%);color:#f8fafc;font-family:system-ui,sans-serif;padding:60px;box-sizing:border-box;">
-        <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.1);padding-bottom:24px;">
-          <div style="display:flex;align-items:center;gap:16px;">
-            <div style="width:14px;height:14px;border-radius:50%;background:#22c55e;box-shadow:0 0 16px #22c55e;"></div>
-            <span style="font-size:1.5rem;font-weight:700;letter-spacing:-0.02em;">GLOBAL TIME & OPERATIONS</span>
-          </div>
-          <div style="font-size:1.1rem;color:#64748b;font-family:monospace;" id="live-date">OCTOBER 2026</div>
-        </div>
-        <div style="text-align:center;margin:auto;">
-          <div style="font-size:7rem;font-weight:800;font-family:monospace;letter-spacing:-0.04em;color:#ffffff;text-shadow:0 0 30px rgba(56,189,248,0.3);" id="live-clock">--:--:--</div>
-          <div style="font-size:1.4rem;color:#38bdf8;font-weight:500;margin-top:8px;">Live Synchronized Timezone</div>
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:24px;border-top:1px solid rgba(255,255,255,0.1);padding-top:24px;">
-          <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);padding:20px;border-radius:16px;text-align:center;">
-            <div style="color:#94a3b8;font-size:0.9rem;text-transform:uppercase;">London</div>
-            <div style="font-size:1.8rem;font-weight:700;margin-top:4px;" id="london-time">--:--</div>
-          </div>
-          <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);padding:20px;border-radius:16px;text-align:center;">
-            <div style="color:#94a3b8;font-size:0.9rem;text-transform:uppercase;">New York</div>
-            <div style="font-size:1.8rem;font-weight:700;margin-top:4px;" id="ny-time">--:--</div>
-          </div>
-          <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);padding:20px;border-radius:16px;text-align:center;">
-            <div style="color:#94a3b8;font-size:0.9rem;text-transform:uppercase;">Tokyo</div>
-            <div style="font-size:1.8rem;font-weight:700;margin-top:4px;" id="tokyo-time">--:--</div>
-          </div>
+      <style>
+        @font-face{font-family:'Archivo Player';font-weight:100 900;font-stretch:62% 125%;src:url(fonts/archivo-latin-standard-normal.woff2) format('woff2-variations');}
+      </style>
+      <div style="width:100%;height:100%;display:flex;flex-direction:column;justify-content:space-between;background:#16181C;color:#E6E8EB;font-family:'Archivo Player','Archivo Variable',system-ui,sans-serif;font-variant-numeric:tabular-nums;padding:8vmin;box-sizing:border-box;">
+        <div id="live-date" style="font-size:3.2vmin;color:#9AA1AB;"></div>
+        <div id="live-clock" style="font-size:24vmin;font-stretch:80%;font-weight:650;line-height:1;letter-spacing:-0.01em;">--:--</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid #33383F;padding-top:3vmin;">
+          <div><div style="font-size:2.4vmin;color:#6B727C;">London</div><div id="london-time" style="font-size:5vmin;font-weight:600;margin-top:0.6vmin;">--:--</div></div>
+          <div><div style="font-size:2.4vmin;color:#6B727C;">New York</div><div id="ny-time" style="font-size:5vmin;font-weight:600;margin-top:0.6vmin;">--:--</div></div>
+          <div><div style="font-size:2.4vmin;color:#6B727C;">Tokyo</div><div id="tokyo-time" style="font-size:5vmin;font-weight:600;margin-top:0.6vmin;">--:--</div></div>
         </div>
         <script>
           function updateClocks() {
             const now = new Date();
-            const dateStr = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-            const clockEl = document.getElementById('live-clock');
-            const dateEl = document.getElementById('live-date');
-            if (clockEl) clockEl.innerText = now.toLocaleTimeString('en-GB');
-            if (dateEl) dateEl.innerText = dateStr.toUpperCase();
-            
-            const london = document.getElementById('london-time');
-            const ny = document.getElementById('ny-time');
-            const tokyo = document.getElementById('tokyo-time');
-            if (london) london.innerText = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', timeStyle: 'short' }).format(now);
-            if (ny) ny.innerText = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', timeStyle: 'short' }).format(now);
-            if (tokyo) tokyo.innerText = new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', timeStyle: 'short' }).format(now);
+            const fmt = (tz) => new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit' }).format(now);
+            document.getElementById('live-clock').textContent = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' }).format(now);
+            document.getElementById('live-date').textContent = now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+            document.getElementById('london-time').textContent = fmt('Europe/London');
+            document.getElementById('ny-time').textContent = fmt('America/New_York');
+            document.getElementById('tokyo-time').textContent = fmt('Asia/Tokyo');
           }
           setInterval(updateClocks, 1000);
           updateClocks();
@@ -131,7 +99,7 @@ function seedInitialData(db) {
 
     const m2 = insertMedia.run(
       'world_clock.html',
-      'World Operations Clock',
+      'World clock',
       '',
       'html_snippet',
       'text/html',

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Upload, Globe, Code, X, Check, Image as ImageIcon, Video } from 'lucide-react';
 import { api } from '../services/api';
+import { Modal, formatBytes } from './ui';
 
 export function MediaUploadModal({ isOpen, onClose, onSuccess }) {
   const [tab, setTab] = useState('upload'); // 'upload' | 'url' | 'html'
@@ -52,201 +52,110 @@ export function MediaUploadModal({ isOpen, onClose, onSuccess }) {
       onSuccess && onSuccess();
       onClose();
     } catch (err) {
-      alert('Error: ' + err.message);
+      alert('Could not add the media: ' + err.message);
     } finally {
       setLoading(false);
     }
   };
 
+  const canSave = !loading && (tab === 'upload' ? Boolean(file) : tab === 'url' ? Boolean(name && url) : Boolean(name && htmlContent));
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
-      <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
-        <button onClick={onClose} className="absolute top-5 right-5 text-slate-400 hover:text-white">
-          <X className="w-5 h-5" />
-        </button>
-
-        <h3 className="text-xl font-bold text-white mb-1">Add Media Asset</h3>
-        <p className="text-xs text-slate-400 mb-5">Upload images, videos, or link web dashboards</p>
-
-        {/* Tab Switcher */}
-        <div className="grid grid-cols-3 gap-2 p-1 bg-slate-950 rounded-xl mb-6">
-          <button
-            type="button"
-            onClick={() => setTab('upload')}
-            className={`py-2 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition ${
-              tab === 'upload' ? 'bg-slate-800 text-emerald-400 shadow-sm' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Upload className="w-3.5 h-3.5" /> File Upload
+    <Modal
+      title="Add media"
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" onClick={onClose} className="btn btn-quiet">Cancel</button>
+          <button type="submit" form="media-form" disabled={!canSave} className="btn btn-primary">
+            {loading ? 'Saving' : tab === 'upload' ? 'Upload' : 'Add to library'}
           </button>
-          <button
-            type="button"
-            onClick={() => setTab('url')}
-            className={`py-2 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition ${
-              tab === 'url' ? 'bg-slate-800 text-sky-400 shadow-sm' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Globe className="w-3.5 h-3.5" /> Web URL
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('html')}
-            className={`py-2 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition ${
-              tab === 'html' ? 'bg-slate-800 text-purple-400 shadow-sm' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Code className="w-3.5 h-3.5" /> HTML Snippet
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {tab === 'upload' && (
-            <div>
-              <div
-                onDragEnter={handleDrag}
-                onDragLeave={handleDrag}
-                onDragOver={handleDrag}
-                onDrop={handleDrop}
-                className={`border-2 border-dashed rounded-xl p-8 text-center transition ${
-                  dragActive
-                    ? 'border-emerald-500 bg-emerald-500/10'
-                    : file
-                    ? 'border-emerald-500/50 bg-slate-950'
-                    : 'border-slate-700 bg-slate-950/50 hover:border-slate-600'
-                }`}
-              >
-                {file ? (
-                  <div className="flex flex-col items-center">
-                    <div className="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mb-2">
-                      <Check className="w-5 h-5" />
-                    </div>
-                    <div className="font-semibold text-sm text-white">{file.name}</div>
-                    <div className="text-xs text-slate-400 mt-0.5">{(file.size / (1024 * 1024)).toFixed(2)} MB</div>
-                    <button
-                      type="button"
-                      onClick={() => setFile(null)}
-                      className="mt-3 text-xs text-red-400 hover:underline"
-                    >
-                      Remove file
-                    </button>
-                  </div>
-                ) : (
-                  <div>
-                    <div className="flex justify-center gap-2 mb-3 text-slate-500">
-                      <ImageIcon className="w-6 h-6" />
-                      <Video className="w-6 h-6" />
-                    </div>
-                    <p className="text-sm font-medium text-slate-300">Drag & drop files here, or browse</p>
-                    <p className="text-xs text-slate-500 mt-1">JPEG, PNG, WebP, GIF, MP4, WebM (up to 500MB)</p>
-                    <label className="mt-4 inline-block px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 rounded-lg cursor-pointer transition">
-                      Browse Files
-                      <input
-                        type="file"
-                        accept="image/*,video/*"
-                        onChange={(e) => e.target.files && setFile(e.target.files[0])}
-                        className="hidden"
-                      />
-                    </label>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {tab === 'url' && (
-            <>
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
-                  Asset Title
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Sales Metrics Dashboard"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-sky-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
-                  Webpage URL
-                </label>
-                <input
-                  type="url"
-                  placeholder="https://dashboard.example.com"
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  required
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-sky-500"
-                />
-              </div>
-            </>
-          )}
-
-          {tab === 'html' && (
-            <>
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
-                  Snippet Name
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Custom Welcome Banner"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-purple-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
-                  HTML / CSS / JavaScript Code
-                </label>
-                <textarea
-                  rows={5}
-                  placeholder="<div style='background: #1e293b; color: white; padding: 20px;'><h1>Hello World</h1></div>"
-                  value={htmlContent}
-                  onChange={(e) => setHtmlContent(e.target.value)}
-                  required
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs font-mono text-white focus:outline-none focus:border-purple-500"
-                />
-              </div>
-            </>
-          )}
-
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
-              Default Duration (Seconds)
-            </label>
-            <input
-              type="number"
-              min="2"
-              max="600"
-              value={duration}
-              onChange={(e) => setDuration(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white"
-            />
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm text-slate-400 hover:text-white"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading || (tab === 'upload' && !file)}
-              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-medium text-sm transition shadow-lg shadow-emerald-900/40 disabled:opacity-50"
-            >
-              {loading ? 'Saving...' : 'Save Media'}
-            </button>
-          </div>
-        </form>
+        </>
+      }
+    >
+      <div className="segmented w-full mb-5" role="group" aria-label="Kind of media">
+        <button type="button" className="flex-1" aria-pressed={tab === 'upload'} onClick={() => setTab('upload')}>File</button>
+        <button type="button" className="flex-1" aria-pressed={tab === 'url'} onClick={() => setTab('url')}>Web page</button>
+        <button type="button" className="flex-1" aria-pressed={tab === 'html'} onClick={() => setTab('html')}>HTML snippet</button>
       </div>
-    </div>
+
+      <form id="media-form" onSubmit={handleSubmit} className="space-y-4">
+        {tab === 'upload' && (
+          <div
+            onDragEnter={handleDrag}
+            onDragLeave={handleDrag}
+            onDragOver={handleDrag}
+            onDrop={handleDrop}
+            className={`rounded border border-dashed px-6 py-8 text-center transition-colors ${
+              dragActive ? 'border-ink bg-raised' : 'border-line-strong bg-ground'
+            }`}
+          >
+            {file ? (
+              <div>
+                <div className="text-sm font-medium text-ink break-all">{file.name}</div>
+                <div className="text-xs text-faint mt-1">{formatBytes(file.size)}</div>
+                <button type="button" onClick={() => setFile(null)} className="btn btn-sm mt-4">Choose another file</button>
+              </div>
+            ) : (
+              <div>
+                <p className="text-sm text-ink">Drop a file here, or</p>
+                <label className="btn btn-sm mt-3 cursor-pointer">
+                  Choose a file
+                  <input
+                    type="file"
+                    accept="image/*,video/*"
+                    onChange={(e) => e.target.files && setFile(e.target.files[0])}
+                    className="sr-only"
+                  />
+                </label>
+                <p className="field-hint mt-4">JPEG, PNG, WebP, GIF, MP4 or WebM, up to 500 MB.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === 'url' && (
+          <>
+            <div>
+              <label className="field-label" htmlFor="m-name">Name</label>
+              <input id="m-name" type="text" placeholder="Sales dashboard" value={name} onChange={(e) => setName(e.target.value)} required className="control" />
+            </div>
+            <div>
+              <label className="field-label" htmlFor="m-url">Address</label>
+              <input id="m-url" type="url" placeholder="https://dashboard.example.com" value={url} onChange={(e) => setUrl(e.target.value)} required className="control" />
+              <p className="field-hint">The page must allow being shown inside a frame.</p>
+            </div>
+          </>
+        )}
+
+        {tab === 'html' && (
+          <>
+            <div>
+              <label className="field-label" htmlFor="m-hname">Name</label>
+              <input id="m-hname" type="text" placeholder="Welcome banner" value={name} onChange={(e) => setName(e.target.value)} required className="control" />
+            </div>
+            <div>
+              <label className="field-label" htmlFor="m-html">HTML</label>
+              <textarea
+                id="m-html"
+                rows={7}
+                spellCheck="false"
+                placeholder="<h1>Welcome</h1>"
+                value={htmlContent}
+                onChange={(e) => setHtmlContent(e.target.value)}
+                required
+                className="control font-mono text-xs"
+              />
+            </div>
+          </>
+        )}
+
+        <div>
+          <label className="field-label" htmlFor="m-duration">Default duration (seconds)</label>
+          <input id="m-duration" type="number" min="2" max="600" value={duration} onChange={(e) => setDuration(e.target.value)} className="control w-32" />
+          <p className="field-hint">Used when the item is added to a playlist. Videos play to the end.</p>
+        </div>
+      </form>
+    </Modal>
   );
 }

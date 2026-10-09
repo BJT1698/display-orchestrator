@@ -1,50 +1,179 @@
+@import '@fontsource-variable/archivo/standard.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html {
+    font-size: 16px;
+  }
+
   body {
-    @apply bg-[#0b0f17] text-slate-100 antialiased selection:bg-emerald-500 selection:text-white;
+    @apply bg-ground text-ink font-sans text-base antialiased;
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    @apply bg-ink text-ground;
+  }
+
+  :focus-visible {
+    outline: 2px solid #E6E8EB;
+    outline-offset: 2px;
+  }
+
+  /* Condensed cut of Archivo for headings and figures */
+  h1, h2, h3, .display {
+    font-stretch: 82%;
+    letter-spacing: -0.005em;
+  }
+
+  input[type="number"]::-webkit-inner-spin-button {
+    opacity: 0.4;
   }
 }
 
-/* Custom Scrollbar */
+@layer components {
+  /* Buttons: primary is monochrome; color only appears for state-changing danger */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 h-9 px-3.5 rounded text-sm font-medium border border-line bg-raised text-ink transition-colors whitespace-nowrap;
+  }
+  .btn:hover:not(:disabled) {
+    @apply border-line-strong bg-[#2E333A];
+  }
+  .btn:disabled {
+    @apply opacity-40 cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply bg-ink text-ground border-ink font-semibold;
+  }
+  .btn-primary:hover:not(:disabled) {
+    @apply bg-white border-white;
+  }
+  .btn-danger {
+    @apply bg-alert text-white border-alert font-semibold;
+  }
+  .btn-danger:hover:not(:disabled) {
+    @apply bg-[#EF5F63] border-[#EF5F63];
+  }
+  .btn-quiet {
+    @apply bg-transparent border-transparent text-muted;
+  }
+  .btn-quiet:hover:not(:disabled) {
+    @apply bg-raised border-transparent text-ink;
+  }
+  .btn-sm {
+    @apply h-8 px-2.5 text-xs;
+  }
+  .btn-icon {
+    @apply inline-flex items-center justify-center w-8 h-8 rounded text-muted transition-colors;
+  }
+  .btn-icon:hover:not(:disabled) {
+    @apply bg-raised text-ink;
+  }
+  .btn-icon:disabled {
+    @apply opacity-30 cursor-not-allowed;
+  }
+  .btn-icon.is-danger:hover:not(:disabled) {
+    @apply text-alert;
+  }
+
+  /* Form controls */
+  .field-label {
+    @apply block text-sm font-medium text-muted mb-1.5;
+  }
+  .field-hint {
+    @apply text-xs text-faint mt-1.5;
+  }
+  .control {
+    @apply w-full h-9 px-3 rounded bg-ground border border-line text-ink text-sm placeholder:text-faint transition-colors;
+  }
+  .control:hover {
+    @apply border-line-strong;
+  }
+  .control:focus {
+    @apply outline-none border-ink;
+  }
+  textarea.control {
+    @apply h-auto py-2 leading-relaxed;
+  }
+
+  /* Surfaces */
+  .panel {
+    @apply bg-surface border border-line rounded-md;
+  }
+  .panel-head {
+    @apply flex items-center justify-between gap-4 px-5 h-14 border-b border-line;
+  }
+
+  /* Segmented control */
+  .segmented {
+    @apply inline-flex p-0.5 rounded bg-ground border border-line;
+  }
+  .segmented > button {
+    @apply h-7 px-3 rounded-sm text-xs font-medium text-muted transition-colors;
+  }
+  .segmented > button:hover {
+    @apply text-ink;
+  }
+  .segmented > button[aria-pressed="true"] {
+    @apply bg-raised text-ink;
+  }
+
+  /* Tally: the one status vocabulary used everywhere */
+  .tally {
+    @apply inline-block w-2 h-2 rounded-full shrink-0 bg-faint;
+  }
+  .tally-live {
+    @apply bg-live;
+  }
+  .tally-caution {
+    @apply bg-caution;
+  }
+  .tally-alert {
+    @apply bg-alert;
+  }
+
+  /* Data tables */
+  .data-table {
+    @apply w-full text-sm border-collapse;
+  }
+  /* :where keeps specificity at one class so utilities like text-right still apply */
+  .data-table :where(th) {
+    @apply text-left text-xs font-medium text-faint px-4 h-10 border-b border-line whitespace-nowrap;
+  }
+  .data-table :where(td) {
+    @apply px-4 py-3 border-b border-line align-middle;
+  }
+  .data-table tbody tr:last-child td {
+    @apply border-b-0;
+  }
+  .data-table tbody tr:hover td {
+    @apply bg-[#22252A];
+  }
+}
+
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 10px;
+  height: 10px;
 }
 ::-webkit-scrollbar-track {
-  background: #0f172a;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 9999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #33383F;
+  border: 3px solid #16181C;
+  border-radius: 6px;
 }
 
-.glass-panel {
-  background: rgba(17, 24, 39, 0.7);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.glass-card {
-  background: rgba(30, 41, 59, 0.5);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-}
-
-.glass-card:hover {
-  border-color: rgba(255, 255, 255, 0.15);
-}
-
-@keyframes pulse-glow {
-  0%, 100% { opacity: 1; filter: drop-shadow(0 0 6px rgba(34, 197, 94, 0.6)); }
-  50% { opacity: 0.7; filter: drop-shadow(0 0 2px rgba(34, 197, 94, 0.3)); }
-}
-
-.glow-online {
-  animation: pulse-glow 2.5s infinite;
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }

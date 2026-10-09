@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { LayoutDashboard, Tv, PlaySquare, Image as ImageIcon, Calendar, Terminal, ShieldAlert, KeyRound, RefreshCw, Radio } from 'lucide-react';
+import { LayoutGrid, Tv, ListVideo, Image as ImageIcon, CalendarClock, ScrollText, Siren, KeyRound, RefreshCw } from 'lucide-react';
 import { api } from './services/api';
 import { DashboardView } from './views/DashboardView';
 import { DisplaysView } from './views/DisplaysView';
@@ -152,158 +152,83 @@ export function App() {
     };
   }, [loadData]);
 
+  const navItems = [
+    { id: 'dashboard', label: 'Overview', Icon: LayoutGrid },
+    { id: 'displays', label: 'Displays', Icon: Tv, count: displays.length },
+    { id: 'playlists', label: 'Playlists', Icon: ListVideo, count: playlists.length },
+    { id: 'media', label: 'Media', Icon: ImageIcon, count: mediaList.length },
+    { id: 'schedules', label: 'Schedules', Icon: CalendarClock, count: schedules.length },
+    { id: 'system', label: 'Groups and logs', Icon: ScrollText },
+  ];
+  const onlineCount = displays.filter((d) => d.status === 'online').length;
+
   return (
-    <div className="min-h-screen bg-[#0b0f17] text-slate-100 flex flex-col md:flex-row">
-      {/* Sidebar Navigation */}
-      <aside className="w-full md:w-64 bg-slate-950/80 border-r border-slate-800/80 flex flex-col justify-between shrink-0 p-4">
-        <div>
-          {/* Logo & Brand */}
-          <div className="flex items-center gap-3 px-3 py-4 mb-6 border-b border-slate-800/80">
-            <div className="p-2.5 bg-gradient-to-tr from-emerald-600 to-teal-400 rounded-xl text-white shadow-lg shadow-emerald-950">
-              <Radio className="w-6 h-6 animate-pulse" />
-            </div>
-            <div>
-              <div className="font-extrabold text-base tracking-tight text-white flex items-center gap-1.5">
-                Display<span className="text-emerald-400">Hub</span>
-              </div>
-              <div className="text-[10px] uppercase font-mono tracking-wider text-slate-400">
-                Orchestrator 1.0
-              </div>
-            </div>
+    <div className="min-h-screen flex flex-col md:flex-row">
+      <aside className="md:w-60 md:h-screen md:sticky md:top-0 shrink-0 bg-surface border-b md:border-b-0 md:border-r border-line flex flex-col">
+        <div className="px-5 pt-5 pb-4 md:pb-6">
+          <div className="display text-xl font-semibold leading-none text-ink">Signage Control</div>
+          <div className="mt-2 flex items-center gap-2 text-xs text-muted">
+            <span className={`tally ${wsConnected ? 'tally-live' : 'tally-caution'}`} aria-hidden="true" />
+            {wsConnected ? `${onlineCount} of ${displays.length} screens on air` : 'Reconnecting to server'}
           </div>
-
-          {/* Navigation Links */}
-          <nav className="space-y-1">
-            <button
-              onClick={() => setCurrentTab('dashboard')}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                currentTab === 'dashboard'
-                  ? 'bg-emerald-600/15 text-emerald-400 border border-emerald-500/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-              }`}
-            >
-              <LayoutDashboard className="w-4 h-4" /> Overview
-            </button>
-
-            <button
-              onClick={() => setCurrentTab('displays')}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                currentTab === 'displays'
-                  ? 'bg-emerald-600/15 text-emerald-400 border border-emerald-500/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <Tv className="w-4 h-4" /> Displays
-              </div>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono">
-                {displays.length}
-              </span>
-            </button>
-
-            <button
-              onClick={() => setCurrentTab('playlists')}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                currentTab === 'playlists'
-                  ? 'bg-emerald-600/15 text-emerald-400 border border-emerald-500/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <PlaySquare className="w-4 h-4" /> Playlists
-              </div>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono">
-                {playlists.length}
-              </span>
-            </button>
-
-            <button
-              onClick={() => setCurrentTab('media')}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                currentTab === 'media'
-                  ? 'bg-emerald-600/15 text-emerald-400 border border-emerald-500/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <ImageIcon className="w-4 h-4" /> Media Library
-              </div>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono">
-                {mediaList.length}
-              </span>
-            </button>
-
-            <button
-              onClick={() => setCurrentTab('schedules')}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                currentTab === 'schedules'
-                  ? 'bg-emerald-600/15 text-emerald-400 border border-emerald-500/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <Calendar className="w-4 h-4" /> Schedules
-              </div>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono">
-                {schedules.length}
-              </span>
-            </button>
-
-            <button
-              onClick={() => setCurrentTab('system')}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-                currentTab === 'system'
-                  ? 'bg-emerald-600/15 text-emerald-400 border border-emerald-500/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-              }`}
-            >
-              <Terminal className="w-4 h-4" /> Logs & Groups
-            </button>
-          </nav>
         </div>
 
-        {/* Live WS Status Indicator & Pairing Quick Action */}
-        <div className="pt-4 border-t border-slate-800/80 space-y-3">
-          <div className="flex items-center justify-between px-3 text-[11px] text-slate-400 font-mono">
-            <span className="flex items-center gap-2">
-              <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-emerald-400 glow-online' : 'bg-red-500'}`} />
-              {wsConnected ? 'WS Connected' : 'WS Reconnecting'}
-            </span>
-            <button onClick={loadData} className="hover:text-white" title="Refresh state">
-              <RefreshCw className="w-3.5 h-3.5" />
-            </button>
-          </div>
+        <nav className="flex md:flex-col gap-0.5 px-3 pb-3 md:pb-0 overflow-x-auto" aria-label="Sections">
+          {navItems.map(({ id, label, Icon, count }) => {
+            const active = currentTab === id;
+            return (
+              <button
+                key={id}
+                onClick={() => setCurrentTab(id)}
+                aria-current={active ? 'page' : undefined}
+                className={`relative flex items-center gap-3 h-9 px-3 rounded text-sm whitespace-nowrap transition-colors ${
+                  active ? 'bg-raised text-ink font-medium' : 'text-muted hover:text-ink hover:bg-raised/60'
+                }`}
+              >
+                {active && <span className="hidden md:block absolute -left-3 top-1.5 bottom-1.5 w-0.5 bg-ink rounded-r" />}
+                <Icon className="w-4 h-4 shrink-0" />
+                <span className="flex-1 text-left">{label}</span>
+                {count !== undefined && <span className="text-xs text-faint">{count}</span>}
+              </button>
+            );
+          })}
+        </nav>
 
-          <button
-            onClick={() => setIsPairingOpen(true)}
-            className="w-full py-2.5 px-3 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-400 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2"
-          >
+        <div className="hidden md:flex flex-col gap-2 mt-auto p-4 border-t border-line">
+          <button onClick={() => setIsPairingOpen(true)} className="btn w-full">
             <KeyRound className="w-4 h-4" />
-            Pair Display {pendingPairings.length > 0 && `(${pendingPairings.length})`}
+            Pair a display
+            {pendingPairings.length > 0 && (
+              <span className="ml-auto inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-sm bg-caution text-ground text-xs font-semibold">
+                {pendingPairings.length}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setIsEmergencyOpen(true)}
+            className="btn w-full border-alert/60 text-alert hover:!border-alert hover:!bg-alert/10"
+          >
+            <Siren className="w-4 h-4" />
+            Emergency alert
+          </button>
+          <button onClick={loadData} className="btn btn-quiet btn-sm w-full justify-start text-faint">
+            <RefreshCw className="w-3.5 h-3.5" />
+            Refresh data
           </button>
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col min-w-0">
-        {/* Top Navbar */}
-        <header className="h-16 border-b border-slate-800/80 bg-slate-950/40 backdrop-blur-md px-6 flex items-center justify-between">
-          <div className="text-xs font-medium text-slate-400">
-            Digital Signage Management &bull; <strong className="text-slate-200 font-mono">SQLite WAL Engine</strong>
-          </div>
+      <main className="flex-1 min-w-0">
+        <div className="md:hidden flex gap-2 px-4 pt-4">
+          <button onClick={() => setIsPairingOpen(true)} className="btn btn-sm flex-1">
+            <KeyRound className="w-4 h-4" /> Pair a display
+          </button>
+          <button onClick={() => setIsEmergencyOpen(true)} className="btn btn-sm flex-1 border-alert/60 text-alert">
+            <Siren className="w-4 h-4" /> Emergency alert
+          </button>
+        </div>
 
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setIsEmergencyOpen(true)}
-              className="px-4 py-2 bg-red-600/20 hover:bg-red-600 border border-red-500/50 hover:border-red-500 text-red-400 hover:text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-red-950/40"
-            >
-              <ShieldAlert className="w-4 h-4" /> Emergency Broadcast
-            </button>
-          </div>
-        </header>
-
-        {/* Dynamic Page Views */}
-        <div className="flex-1 p-6 md:p-8 overflow-y-auto max-w-7xl w-full mx-auto">
+        <div className="px-4 sm:px-8 py-8 max-w-[1400px] mx-auto">
           {currentTab === 'dashboard' && (
             <DashboardView
               systemStats={systemStats}

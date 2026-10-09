@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { KeyRound, X, CheckCircle2, Tv } from 'lucide-react';
 import { api } from '../services/api';
+import { Modal, ErrorNote } from './ui';
 
 export function PairingModal({ isOpen, onClose, pendingList = [], groups = [], onSuccess }) {
   const [selectedCode, setSelectedCode] = useState('');
@@ -29,7 +29,7 @@ export function PairingModal({ isOpen, onClose, pendingList = [], groups = [], o
         onSuccess && onSuccess();
         onClose();
       } else {
-        setError(res.error || 'Failed to approve pairing');
+        setError(res.error || 'This code was not accepted. Check it against the one on the screen.');
       }
     } catch (err) {
       setError(err.message);
@@ -39,126 +39,90 @@ export function PairingModal({ isOpen, onClose, pendingList = [], groups = [], o
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
-      <div className="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
-        <button
-          onClick={onClose}
-          className="absolute top-5 right-5 text-slate-400 hover:text-white transition"
-        >
-          <X className="w-5 h-5" />
-        </button>
+    <Modal
+      title="Pair a display"
+      description="Enter the code shown on the screen, or pick a screen that is already waiting."
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" onClick={onClose} className="btn btn-quiet">Cancel</button>
+          <button type="submit" form="pairing-form" disabled={loading || !selectedCode.trim()} className="btn btn-primary">
+            {loading ? 'Pairing' : 'Pair display'}
+          </button>
+        </>
+      }
+    >
+      <ErrorNote>{error}</ErrorNote>
 
-        <div className="flex items-center gap-3 mb-5">
-          <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400">
-            <KeyRound className="w-6 h-6" />
-          </div>
-          <div>
-            <h3 className="text-xl font-bold text-white">Pair New Display Node</h3>
-            <p className="text-sm text-slate-400">Approve pending screens or enter pairing PIN</p>
-          </div>
-        </div>
-
-        {error && (
-          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm">
-            {error}
-          </div>
-        )}
-
-        {pendingList.length > 0 && (
-          <div className="mb-6">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-              Discovered Displays Waiting ({pendingList.length})
-            </label>
-            <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-              {pendingList.map((p) => (
-                <div
+      {pendingList.length > 0 && (
+        <fieldset className="mb-5">
+          <legend className="field-label">Waiting to be paired</legend>
+          <div className="border border-line rounded divide-y divide-line max-h-48 overflow-y-auto">
+            {pendingList.map((p) => {
+              const selected = selectedCode === p.pairing_code;
+              return (
+                <button
+                  type="button"
                   key={p.id}
                   onClick={() => handleSelectPending(p)}
-                  className={`flex items-center justify-between p-3 rounded-xl border transition cursor-pointer ${
-                    selectedCode === p.pairing_code
-                      ? 'bg-emerald-500/15 border-emerald-500/40 text-white'
-                      : 'bg-slate-800/60 border-slate-700/60 hover:bg-slate-800 text-slate-300'
+                  aria-pressed={selected}
+                  className={`w-full flex items-center justify-between gap-4 px-3 py-2.5 text-left transition-colors ${
+                    selected ? 'bg-raised' : 'hover:bg-[#22252A]'
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <Tv className="w-4 h-4 text-emerald-400" />
-                    <div>
-                      <div className="font-semibold text-sm">{p.client_name || 'Display Screen'}</div>
-                      <div className="text-xs text-slate-400 font-mono">IP: {p.ip_address}</div>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className={`w-3.5 h-3.5 rounded-full border shrink-0 ${selected ? 'border-ink bg-ink shadow-[inset_0_0_0_3px_#262A30]' : 'border-line-strong'}`} aria-hidden="true" />
+                    <div className="min-w-0">
+                      <div className="text-sm text-ink truncate">{p.client_name || 'Unnamed screen'}</div>
+                      <div className="text-xs text-faint">{p.ip_address}</div>
                     </div>
                   </div>
-                  <div className="font-mono font-bold text-base px-2.5 py-1 bg-slate-950 rounded-lg border border-slate-800 text-emerald-400">
-                    {p.pairing_code}
-                  </div>
-                </div>
-              ))}
-            </div>
+                  <span className="display text-lg font-semibold tracking-[0.12em] text-ink">{p.pairing_code}</span>
+                </button>
+              );
+            })}
           </div>
-        )}
+        </fieldset>
+      )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
-              Pairing Code
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. K9F-2A7"
-              value={selectedCode}
-              onChange={(e) => setSelectedCode(e.target.value.toUpperCase())}
-              required
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 font-mono text-lg font-bold text-center tracking-widest text-emerald-400 placeholder:text-slate-600 focus:outline-none focus:border-emerald-500"
-            />
-          </div>
+      <form id="pairing-form" onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="field-label" htmlFor="pair-code">Pairing code</label>
+          <input
+            id="pair-code"
+            type="text"
+            placeholder="K9F-2A7"
+            value={selectedCode}
+            onChange={(e) => setSelectedCode(e.target.value.toUpperCase())}
+            required
+            autoComplete="off"
+            spellCheck="false"
+            className="control h-14 text-center display text-2xl font-semibold tracking-[0.3em]"
+          />
+        </div>
 
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
-              Display Friendly Name
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. Reception Main Screen"
-              value={customName}
-              onChange={(e) => setCustomName(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500"
-            />
-          </div>
+        <div>
+          <label className="field-label" htmlFor="pair-name">Screen name</label>
+          <input
+            id="pair-name"
+            type="text"
+            placeholder="Reception, left screen"
+            value={customName}
+            onChange={(e) => setCustomName(e.target.value)}
+            className="control"
+          />
+        </div>
 
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
-              Assign Group (Optional)
-            </label>
-            <select
-              value={groupId}
-              onChange={(e) => setGroupId(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"
-            >
-              <option value="">-- No Group (Default) --</option>
-              {groups.map((g) => (
-                <option key={g.id} value={g.id}>{g.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm text-slate-400 hover:text-white transition"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading || !selectedCode.trim()}
-              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-medium text-sm transition flex items-center gap-2 shadow-lg shadow-emerald-900/40 disabled:opacity-50"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              {loading ? 'Authorizing...' : 'Approve & Pair'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div>
+          <label className="field-label" htmlFor="pair-group">Group</label>
+          <select id="pair-group" value={groupId} onChange={(e) => setGroupId(e.target.value)} className="control">
+            <option value="">No group</option>
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>{g.name}</option>
+            ))}
+          </select>
+        </div>
+      </form>
+    </Modal>
   );
 }

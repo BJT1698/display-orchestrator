@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Activity, Server, Users, Trash2, Plus, Terminal, RefreshCw, Cpu, HardDrive } from 'lucide-react';
+import { Trash2, Plus } from 'lucide-react';
 import { api } from '../services/api';
+import { PageHeader, EmptyState, Modal, Tally, formatBytes, formatTime } from '../components/ui';
 
 export function SystemView({
   systemStats,
@@ -21,7 +22,7 @@ export function SystemView({
   }) : [];
 
   const handleClearLogs = async () => {
-    if (!confirm('Clear all audit logs?')) return;
+    if (!confirm('Clear the whole event log? This cannot be undone.')) return;
     try {
       await api.clearLogs();
       onRefresh && onRefresh();
@@ -50,7 +51,7 @@ export function SystemView({
   };
 
   const handleDeleteGroup = async (id, name) => {
-    if (!confirm(`Delete display group '${name}'? Displays in this group will not be deleted.`)) return;
+    if (!confirm(`Delete display group '${name}'? The screens in it stay paired.`)) return;
     try {
       await api.deleteGroup(id);
       onRefresh && onRefresh();
@@ -59,223 +60,161 @@ export function SystemView({
     }
   };
 
+  const mem = systemStats?.memory;
+
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-black text-white">System, Logs & Groups</h1>
-        <p className="text-xs text-slate-400">Server diagnostics, audit trails, and device grouping</p>
-      </div>
+    <div>
+      <PageHeader title="Groups and logs" description="Group screens by place to give them a shared default playlist, and review what happened on the server." />
 
-      {/* Diagnostics / Hardware KPI */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        <div className="glass-panel p-5 rounded-2xl">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Node / Host Engine</span>
-            <Server className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div className="text-lg font-bold text-white font-mono">{systemStats?.nodeVersion || 'Node.js'}</div>
-          <div className="text-xs text-slate-400 mt-1">Platform: {systemStats?.platform} ({systemStats?.arch})</div>
+      <dl className="mb-10 grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-line border-y border-line">
+        <div className="py-4 sm:pr-5">
+          <dt className="text-sm text-muted">Server</dt>
+          <dd className="mt-1 text-lg font-medium text-ink">Node {String(systemStats?.nodeVersion || '').replace(/^v/, '') || 'unknown'}</dd>
+          <dd className="text-xs text-faint">{systemStats?.platform} {systemStats?.arch}</dd>
         </div>
-
-        <div className="glass-panel p-5 rounded-2xl">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Memory Allocation</span>
-            <Cpu className="w-4 h-4 text-sky-400" />
-          </div>
-          <div className="text-lg font-bold text-sky-400 font-mono">
-            {systemStats?.memory ? `${(systemStats.memory.used / (1024 * 1024)).toFixed(0)} MB / ${(systemStats.memory.total / (1024 * 1024)).toFixed(0)} MB` : 'N/A'}
-          </div>
-          <div className="text-xs text-slate-400 mt-1">{systemStats?.memory?.percent || 0}% host RAM in use</div>
+        <div className="py-4 sm:px-5">
+          <dt className="text-sm text-muted">Memory</dt>
+          <dd className="mt-1 text-lg font-medium text-ink">
+            {mem ? `${formatBytes(mem.used)} of ${formatBytes(mem.total)}` : 'No data'}
+          </dd>
+          {mem && (
+            <dd className="mt-2 h-1 rounded-full bg-raised overflow-hidden">
+              <div className={`h-full ${mem.percent > 85 ? 'bg-caution' : 'bg-ink'}`} style={{ width: `${Math.min(100, mem.percent || 0)}%` }} />
+            </dd>
+          )}
         </div>
-
-        <div className="glass-panel p-5 rounded-2xl">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">WebSocket Connections</span>
-            <Activity className="w-4 h-4 text-purple-400" />
-          </div>
-          <div className="text-lg font-bold text-purple-400 font-mono">
-            {systemStats?.activeWsConnections || 0} active nodes
-          </div>
-          <div className="text-xs text-slate-400 mt-1">Real-time bidirectional control</div>
+        <div className="py-4 sm:pl-5">
+          <dt className="text-sm text-muted">Live connections</dt>
+          <dd className="mt-1 text-lg font-medium text-ink">{systemStats?.activeWsConnections || 0}</dd>
+          <dd className="text-xs text-faint">Screens and dashboards connected now</dd>
         </div>
-      </div>
+      </dl>
 
-      {/* Display Groups Manager */}
-      <div className="glass-panel p-6 rounded-2xl space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-bold text-white">Display Groups ({groups.length})</h3>
-            <p className="text-xs text-slate-400">Group screens (e.g. by building, floor, or store branch) to assign default playlists</p>
-          </div>
-          <button
-            onClick={() => setIsCreatingGroup(true)}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
-          >
-            <Plus className="w-3.5 h-3.5" /> New Group
+      <section aria-labelledby="groups-heading" className="mb-12">
+        <div className="flex items-center justify-between gap-4 mb-3">
+          <h2 id="groups-heading" className="text-xl font-semibold text-ink">Groups</h2>
+          <button onClick={() => setIsCreatingGroup(true)} className="btn">
+            <Plus className="w-4 h-4" /> New group
           </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
-          {groups.map((g) => (
-            <div
-              key={g.id}
-              className="glass-card p-4 rounded-xl border border-slate-800 flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <h4 className="font-bold text-white text-sm">{g.name}</h4>
-                  <button
-                    onClick={() => handleDeleteGroup(g.id, g.name)}
-                    className="text-slate-500 hover:text-red-400 p-1"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-                <p className="text-xs text-slate-400">{g.description || 'No description'}</p>
-              </div>
-
-              <div className="mt-4 pt-3 border-t border-slate-800/80 text-[11px] text-slate-400 flex items-center justify-between">
-                <span>Default: <strong className="text-emerald-400">{g.default_playlist_name || 'None'}</strong></span>
-                <span className="font-mono">{g.display_count || 0} screen(s)</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Audit Logs Stream */}
-      <div className="glass-panel p-6 rounded-2xl space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h3 className="text-lg font-bold text-white">Audit & Event Log Trail</h3>
-            <p className="text-xs text-slate-400">Live operational events recorded in SQLite</p>
+        {groups.length === 0 ? (
+          <EmptyState title="No groups yet">
+            Groups let you give several screens, such as every screen on one floor, the same default playlist.
+          </EmptyState>
+        ) : (
+          <div className="panel overflow-x-auto">
+            <table className="data-table min-w-[640px]">
+              <thead>
+                <tr>
+                  <th>Group</th>
+                  <th>Default playlist</th>
+                  <th className="text-right">Screens</th>
+                  <th className="w-12"><span className="sr-only">Actions</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {groups.map((g) => (
+                  <tr key={g.id}>
+                    <td>
+                      <div className="font-medium text-ink">{g.name}</div>
+                      {g.description && <div className="text-xs text-faint">{g.description}</div>}
+                    </td>
+                    <td className={g.default_playlist_name ? 'text-ink' : 'text-faint'}>{g.default_playlist_name || 'None'}</td>
+                    <td className="text-right text-ink">{g.display_count || 0}</td>
+                    <td className="text-right">
+                      <button onClick={() => handleDeleteGroup(g.id, g.name)} className="btn-icon is-danger" title="Delete group" aria-label={`Delete ${g.name}`}>
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
+        )}
+      </section>
 
+      <section aria-labelledby="log-heading">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+          <h2 id="log-heading" className="text-xl font-semibold text-ink">Event log</h2>
           <div className="flex items-center gap-2">
-            <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
-              <button
-                onClick={() => setLogFilter('all')}
-                className={`px-2.5 py-1 rounded-lg ${logFilter === 'all' ? 'bg-slate-800 text-white' : 'text-slate-400'}`}
-              >
-                All
-              </button>
-              <button
-                onClick={() => setLogFilter('command')}
-                className={`px-2.5 py-1 rounded-lg ${logFilter === 'command' ? 'bg-slate-800 text-purple-400' : 'text-slate-400'}`}
-              >
-                Commands
-              </button>
-              <button
-                onClick={() => setLogFilter('warn')}
-                className={`px-2.5 py-1 rounded-lg ${logFilter === 'warn' ? 'bg-slate-800 text-amber-400' : 'text-slate-400'}`}
-              >
-                Warnings
-              </button>
+            <div className="segmented" role="group" aria-label="Filter log">
+              <button aria-pressed={logFilter === 'all'} onClick={() => setLogFilter('all')}>All</button>
+              <button aria-pressed={logFilter === 'command'} onClick={() => setLogFilter('command')}>Commands</button>
+              <button aria-pressed={logFilter === 'warn'} onClick={() => setLogFilter('warn')}>Warnings</button>
+              <button aria-pressed={logFilter === 'error'} onClick={() => setLogFilter('error')}>Errors</button>
             </div>
-
-            <button
-              onClick={handleClearLogs}
-              className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-red-400 rounded-xl transition"
-              title="Clear Logs"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
+            <button onClick={handleClearLogs} className="btn btn-sm">Clear log</button>
           </div>
         </div>
 
-        <div className="bg-slate-950 rounded-xl p-3 max-h-96 overflow-y-auto font-mono text-xs space-y-1.5 border border-slate-800/80">
+        <div className="panel max-h-[32rem] overflow-auto">
           {filteredLogs.length === 0 ? (
-            <div className="text-slate-500 text-center py-6">No logs to display</div>
+            <div className="px-5 py-10 text-center text-sm text-faint">No events match this filter.</div>
           ) : (
-            filteredLogs.map((log) => (
-              <div key={log.id} className="flex items-start gap-2.5 py-1 border-b border-slate-900/60">
-                <span className="text-slate-500 whitespace-nowrap text-[10px]">
-                  {new Date(log.created_at).toLocaleTimeString()}
-                </span>
-                <span className={`px-1.5 py-0.5 rounded text-[10px] uppercase font-bold whitespace-nowrap ${
-                  log.level === 'warn' ? 'bg-amber-500/20 text-amber-400' :
-                  log.level === 'error' ? 'bg-red-500/20 text-red-400' :
-                  log.level === 'command' ? 'bg-purple-500/20 text-purple-400' :
-                  'bg-emerald-500/20 text-emerald-400'
-                }`}>
-                  {log.level}
-                </span>
-                <span className="text-slate-400 text-[10px] whitespace-nowrap">[{log.source}]</span>
-                <span className="text-slate-200">{log.message}</span>
-              </div>
-            ))
+            <table className="data-table min-w-[640px]">
+              <thead className="sticky top-0 bg-surface">
+                <tr>
+                  <th className="w-28">Time</th>
+                  <th className="w-28">Level</th>
+                  <th className="w-32">Source</th>
+                  <th>Event</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredLogs.map((log) => (
+                  <tr key={log.id}>
+                    <td className="text-faint whitespace-nowrap">{formatTime(log.created_at)}</td>
+                    <td>
+                      <span className="inline-flex items-center gap-2 text-muted capitalize">
+                        <Tally status={log.level === 'warn' ? 'warn' : log.level === 'error' ? 'error' : log.level === 'command' ? 'offline' : 'online'} />
+                        {log.level === 'warn' ? 'Warning' : log.level}
+                      </span>
+                    </td>
+                    <td className="text-muted">{log.source}</td>
+                    <td className="text-ink">{log.message}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
         </div>
-      </div>
+      </section>
 
-      {/* Modal: Create Group */}
       {isCreatingGroup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl">
-            <h3 className="text-lg font-bold text-white mb-4">Create Display Group</h3>
-            <form onSubmit={handleCreateGroup} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
-                  Group Name
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Headquarters Reception"
-                  value={groupName}
-                  onChange={(e) => setGroupName(e.target.value)}
-                  required
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
-                  Description
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Ground floor lobby display network"
-                  value={groupDesc}
-                  onChange={(e) => setGroupDesc(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
-                  Default Playlist
-                </label>
-                <select
-                  value={groupDefaultPlaylist}
-                  onChange={(e) => setGroupDefaultPlaylist(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white"
-                >
-                  <option value="">-- None --</option>
-                  {playlists.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsCreatingGroup(false)}
-                  className="px-4 py-2 text-sm text-slate-400 hover:text-white"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-medium text-sm transition"
-                >
-                  Create Group
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <Modal
+          title="New group"
+          onClose={() => setIsCreatingGroup(false)}
+          width="max-w-md"
+          footer={
+            <>
+              <button type="button" onClick={() => setIsCreatingGroup(false)} className="btn btn-quiet">Cancel</button>
+              <button type="submit" form="create-group" className="btn btn-primary">Create group</button>
+            </>
+          }
+        >
+          <form id="create-group" onSubmit={handleCreateGroup} className="space-y-4">
+            <div>
+              <label className="field-label" htmlFor="g-name">Name</label>
+              <input id="g-name" type="text" placeholder="Ground floor" value={groupName} onChange={(e) => setGroupName(e.target.value)} required autoFocus className="control" />
+            </div>
+            <div>
+              <label className="field-label" htmlFor="g-desc">Description <span className="text-faint font-normal">(optional)</span></label>
+              <input id="g-desc" type="text" placeholder="Screens in the entrance hall" value={groupDesc} onChange={(e) => setGroupDesc(e.target.value)} className="control" />
+            </div>
+            <div>
+              <label className="field-label" htmlFor="g-playlist">Default playlist</label>
+              <select id="g-playlist" value={groupDefaultPlaylist} onChange={(e) => setGroupDefaultPlaylist(e.target.value)} className="control">
+                <option value="">None</option>
+                {playlists.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              <p className="field-hint">Screens in this group play it unless they have their own playlist or a schedule applies.</p>
+            </div>
+          </form>
+        </Modal>
       )}
     </div>
   );
