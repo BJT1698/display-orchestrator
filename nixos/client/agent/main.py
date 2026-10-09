@@ -94,7 +94,8 @@ class ViewerHTTPHandler(SimpleHTTPRequestHandler):
                 "config": config,
                 "isOnline": is_online,
                 "currentPlaylist": current_playlist,
-                "pairingPIN": active_pairing_code
+                "pairingPIN": active_pairing_code,
+                "overrides": current_overrides()
             }
             self.wfile.write(json.dumps(state).encode("utf-8"))
             return
@@ -108,8 +109,31 @@ config = load_config()
 is_online = False
 current_playlist = None
 active_pairing_code = ""
+# Temporary commands from the server that the viewer applies on top of the playlist.
+# Expiry times are epoch milliseconds so the viewer (same machine) can compare with Date.now().
+overrides = {
+    "push": None,        # {"url", "expiresAt"}
+    "blank": False,
+    "emergency": None,   # {"title", "message", "expiresAt"}
+    "reloadToken": 0,    # bumped on FORCE_RELOAD; the viewer reloads when it changes
+}
 start_time = time.time()
 active_ws_connection = None
+
+def expires_at(duration_seconds, default):
+    try:
+        seconds = max(1, int(duration_seconds))
+    except (TypeError, ValueError):
+        seconds = default
+    return int((time.time() + seconds) * 1000)
+
+def current_overrides():
+    now_ms = int(time.time() * 1000)
+    for key in ("push", "emergency"):
+        entry = overrides.get(key)
+        if entry and entry["expiresAt"] <= now_ms:
+            overrides[key] = None
+    return overrides
 
 def start_http_server(port):
     server = HTTPServer(("0.0.0.0", port), ViewerHTTPHandler)
@@ -284,16 +308,25 @@ async def handle_ws_message(ws, msg):
         url = msg.get("url")
         dur = msg.get("durationSeconds", 30)
         print(f"🌐 Live URL Push: {url} ({dur}s)")
+        if url:
+            overrides["push"] = {"url": url, "expiresAt": expires_at(dur, 30)}
 
     elif mtype == "FORCE_RELOAD":
         print("🔄 Force Reload Command received")
+        overrides["reloadToken"] += 1
 
     elif mtype == "BLANK_SCREEN":
-        state = msg.get("state", False)
+        state = bool(msg.get("state", False))
         print(f"🖥️ Blank Screen: {state}")
+        overrides["blank"] = state
 
     elif mtype == "EMERGENCY_ALERT":
         print(f"🚨 EMERGENCY ALERT: {msg.get('title')} - {msg.get('message')}")
+        overrides["emergency"] = {
+            "title": msg.get("title") or "Emergency",
+            "message": msg.get("message") or "",
+            "expiresAt": expires_at(msg.get("durationSeconds"), 60),
+        }
 
 def main():
     print("==========================================================")

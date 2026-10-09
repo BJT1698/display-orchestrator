@@ -29,13 +29,14 @@
   let currentPlaylist = null;
   let currentSlideIndex = -1;
   let slideTimer = null;
-  let pushTimer = null;
-  let alertTimer = null;
+  let reloadToken = null;
+  let pushedUrl = null;
 
   function init() {
     startClock();
     pollAgentState();
-    setInterval(pollAgentState, 3000);
+    // Local poll; kept short so emergency alerts and pushed pages appear within a second
+    setInterval(pollAgentState, 1000);
   }
 
   function startClock() {
@@ -51,8 +52,9 @@
 
   async function pollAgentState() {
     try {
-      const res = await fetch('/api/agent/state').then(r => r.json());
+      const res = await fetch('/api/agent/state', { cache: 'no-store' }).then(r => r.json());
       const isOnline = res.isOnline;
+      applyOverrides(res.overrides);
       if (statusIndicator) statusIndicator.className = isOnline ? 'status-dot' : 'status-dot offline';
 
       if (res.pairingPIN) {
@@ -75,28 +77,67 @@
         showStandbyScreen(res.config, isOnline);
       }
     } catch (e) {
-      statusIndicator.className = 'status-dot offline';
+      if (statusIndicator) statusIndicator.className = 'status-dot offline';
       showStandbyScreen(null, false);
     }
+  }
+
+  // Commands from the server that sit on top of normal playback, each with its own expiry
+  function applyOverrides(o) {
+    if (!o) return;
+    const now = Date.now();
+
+    if (reloadToken === null) {
+      reloadToken = o.reloadToken;
+    } else if (o.reloadToken !== reloadToken) {
+      window.location.reload();
+      return;
+    }
+
+    blankOverlay.classList.toggle('visible', Boolean(o.blank));
+
+    const emergency = o.emergency && o.emergency.expiresAt > now ? o.emergency : null;
+    if (emergency) {
+      alertTitle.textContent = emergency.title || 'Emergency';
+      alertMessage.textContent = emergency.message || '';
+    }
+    emergencyOverlay.classList.toggle('visible', Boolean(emergency));
+
+    const push = o.push && o.push.expiresAt > now ? o.push : null;
+    if (push) {
+      if (pushedUrl !== push.url) {
+        pushedUrl = push.url;
+        pushIframe.src = push.url;
+      }
+      pushContainer.classList.add('visible');
+    } else if (pushedUrl !== null) {
+      pushedUrl = null;
+      pushContainer.classList.remove('visible');
+      pushIframe.src = 'about:blank';
+    }
+  }
+
+  function shortId(uuid) {
+    return (uuid || '').substring(0, 8) || '--------';
   }
 
   function showStandbyScreen(cfg, isOnline) {
     if (!standbyOverlay) return;
     if (cfg) {
-      standbyDeviceName.innerText = cfg.name || 'Signage Display';
-      standbyDeviceUuid.innerText = (cfg.uuid || '').substring(0, 12) + '...';
-      standbyServerUrl.innerText = cfg.serverUrl || 'ws://server:8080/ws';
+      standbyDeviceName.textContent = cfg.name || 'Signage player';
+      standbyDeviceUuid.textContent = shortId(cfg.uuid);
+      standbyServerUrl.textContent = cfg.serverUrl || 'ws://server:8080/ws';
     }
     if (isOnline) {
-      standbyStatusBadge.innerText = '● Connected & Ready';
-      standbyStatusBadge.style.color = '#22c55e';
-      standbyTitle.innerText = 'Waiting for Playlist';
-      standbySub.innerText = 'This display is connected to the Orchestrator. Assign a playlist from the Web Dashboard to begin playback.';
+      standbyOverlay.dataset.tally = 'live';
+      standbyStatusBadge.textContent = 'Connected';
+      standbyTitle.textContent = 'Ready for content';
+      standbySub.textContent = 'This screen is connected. Assign a playlist to it in Signage Control to start playback.';
     } else {
-      standbyStatusBadge.innerText = '○ Connecting...';
-      standbyStatusBadge.style.color = '#f59e0b';
-      standbyTitle.innerText = 'Connecting to Orchestrator';
-      standbySub.innerText = 'Attempting connection to the server. Check your network or server URL configuration.';
+      standbyOverlay.dataset.tally = 'caution';
+      standbyStatusBadge.textContent = 'Connecting';
+      standbyTitle.textContent = 'Connecting to the server';
+      standbySub.textContent = 'Trying to reach the server. Check the network cable and the server address below.';
     }
     standbyOverlay.classList.add('visible');
   }
@@ -108,10 +149,21 @@
   }
 
   function showPairingScreen(pin, cfg) {
-    pairingCodeDisplay.innerText = pin;
+    // Split six-character codes into two groups of three for easier reading from a distance
+    const code = String(pin || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    pairingCodeDisplay.textContent = '';
+    if (code.length === 6) {
+      pairingCodeDisplay.append(code.slice(0, 3));
+      const gap = document.createElement('span');
+      gap.className = 'gap';
+      pairingCodeDisplay.append(gap, code.slice(3));
+    } else {
+      pairingCodeDisplay.textContent = code;
+    }
+    pairingCodeDisplay.setAttribute('aria-label', 'Pairing code ' + code.split('').join(' '));
     if (cfg) {
-      pairingDeviceName.innerText = cfg.name || 'Signage Display';
-      pairingDeviceUuid.innerText = (cfg.uuid || '').substring(0, 8) + '...';
+      pairingDeviceName.textContent = cfg.name || 'Signage player';
+      pairingDeviceUuid.textContent = shortId(cfg.uuid);
     }
     pairingOverlay.classList.add('visible');
     stopPlayback();
@@ -130,7 +182,7 @@
 
   function playCurrentSlide() {
     if (!currentPlaylist || !currentPlaylist.items || currentPlaylist.items.length === 0) {
-      activeLayer.innerHTML = '<div style="color:#64748b;font-size:1.5rem;font-weight:700;">No Playlist Assigned</div>';
+      activeLayer.innerHTML = '';
       return;
     }
 
@@ -178,10 +230,13 @@
       layer.appendChild(video);
       video.play().catch(() => {});
     } else if (mtype === 'html_snippet') {
-      const div = document.createElement('div');
-      div.className = 'html-container';
-      div.innerHTML = item.html_content || item.content || '';
-      layer.appendChild(div);
+      // srcdoc iframe: scripts in the snippet run (innerHTML would skip them) and its CSS stays contained
+      const frame = document.createElement('iframe');
+      frame.className = 'html-frame';
+      frame.srcdoc = '<!DOCTYPE html><html><head><meta charset="utf-8">' +
+        '<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}</style>' +
+        '</head><body>' + (item.html_content || item.content || '') + '</body></html>';
+      layer.appendChild(frame);
     } else if (mtype === 'webpage') {
       const iframe = document.createElement('iframe');
       iframe.src = src;

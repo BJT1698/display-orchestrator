@@ -3,76 +3,57 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Digital Signage Kiosk Viewer</title>
+  <title>Signage player</title>
   <link rel="stylesheet" href="style.css">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&family=JetBrains+Mono:wght@700;800&display=swap" rel="stylesheet">
 </head>
 <body>
-  <!-- Stage with Double Buffering Layers for Smooth Transitions -->
+  <!-- Stage with double-buffered layers for transitions -->
   <div id="stage">
     <div id="layer-a" class="layer active"></div>
     <div id="layer-b" class="layer"></div>
   </div>
 
-
-
-  <!-- Push URL Container -->
   <div id="push-frame-container">
     <iframe id="push-iframe" src="about:blank" allow="autoplay; fullscreen"></iframe>
   </div>
 
-  <!-- Screen Blank Overlay -->
   <div id="blank-overlay"></div>
 
-  <!-- Emergency Overlay -->
-  <div id="emergency-overlay">
-    <div class="alert-title" id="alert-title">⚠️ EMERGENCY ALERT</div>
-    <div class="alert-message" id="alert-message">Please follow security staff instructions immediately.</div>
-  </div>
-
-  <!-- Pairing / Unpaired Screen -->
-  <div id="pairing-overlay">
-    <div class="pairing-card">
-      <div class="pairing-badge">⚡ Device Pairing</div>
-      <h1 class="pairing-title">Display Unpaired</h1>
-      <p class="pairing-sub">
-        To associate this screen with the orchestrator, enter the PIN code below on the web dashboard:
-      </p>
-
-      <div class="pairing-code-box">
-        <div class="pairing-code-label">PAIRING CODE</div>
-        <div class="pairing-code-value" id="pairing-code-display">--- ---</div>
-      </div>
-
-      <div class="pairing-meta">
-        <div class="pairing-meta-item">Device: <strong id="pairing-device-name">Signage Node</strong></div>
-        <div class="pairing-meta-item">UUID: <strong id="pairing-device-uuid">--------</strong></div>
-      </div>
+  <div id="emergency-overlay" role="alert">
+    <div class="emergency-body">
+      <h1 class="alert-title" id="alert-title">Emergency</h1>
+      <p class="alert-message" id="alert-message">Follow the instructions of the security staff.</p>
     </div>
   </div>
 
-  <!-- Standby / Idle Screen -->
-  <div id="standby-overlay">
-    <div class="pairing-card">
-      <div class="pairing-badge" id="standby-status-badge">⚡ Display Active</div>
-      <h1 class="pairing-title" id="standby-title">Waiting for Content</h1>
-      <p class="pairing-sub" id="standby-sub">
-        This display is active. Assign a playlist from the Web Dashboard to begin playback.
+  <!-- Pairing: this screen is not yet approved on the server -->
+  <section id="pairing-overlay" class="screen" data-tally="caution">
+    <div class="screen-main">
+      <h1 class="screen-title">Pair this screen</h1>
+      <p class="screen-lead">
+        In Signage Control, choose <strong>Pair a display</strong> and enter this code.
       </p>
-
-      <div class="pairing-code-box" style="padding: 16px 24px; border-style: solid; border-color: rgba(255,255,255,0.1);">
-        <div class="pairing-code-label">ORCHESTRATOR SERVER</div>
-        <div style="font-family: 'JetBrains Mono', monospace; font-size: 1.3rem; color: #38bdf8; font-weight: 700; margin-top: 6px; word-break: break-all;" id="standby-server-url">ws://server:8080/ws</div>
-      </div>
-
-      <div class="pairing-meta">
-        <div class="pairing-meta-item">Device: <strong id="standby-device-name">Signage Node</strong></div>
-        <div class="pairing-meta-item">UUID: <strong id="standby-device-uuid">--------</strong></div>
-      </div>
+      <div class="pairing-code" id="pairing-code-display" aria-label="Pairing code">------</div>
     </div>
-  </div>
+    <dl class="screen-facts">
+      <div><dt>Screen</dt><dd id="pairing-device-name">Signage player</dd></div>
+      <div><dt>Device ID</dt><dd id="pairing-device-uuid">--------</dd></div>
+    </dl>
+  </section>
+
+  <!-- Standby: paired, but nothing to play, or the server is unreachable -->
+  <section id="standby-overlay" class="screen" data-tally="caution">
+    <div class="screen-main">
+      <div class="screen-state" id="standby-status-badge">Connecting</div>
+      <h1 class="screen-title" id="standby-title">Connecting to the server</h1>
+      <p class="screen-lead" id="standby-sub">Trying to reach the server. Check the network cable and the server address.</p>
+    </div>
+    <dl class="screen-facts">
+      <div><dt>Screen</dt><dd id="standby-device-name">Signage player</dd></div>
+      <div><dt>Server</dt><dd id="standby-server-url">ws://server:8080/ws</dd></div>
+      <div><dt>Device ID</dt><dd id="standby-device-uuid">--------</dd></div>
+    </dl>
+  </section>
 
   <script src="app.js"></script>
 </body>
