@@ -27,7 +27,8 @@ except ImportError:
 # Paths & Directories
 BASE_DIR = Path(__file__).resolve().parent
 ROOT_DIR = BASE_DIR.parent
-VIEWER_DIR = ROOT_DIR / "viewer"
+# Overridable so a main.py dropped into /etc/signage still finds the viewer shipped with the image
+VIEWER_DIR = Path(os.environ.get("VIEWER_DIR", ROOT_DIR / "viewer"))
 CACHE_DIR = Path(os.environ.get("CACHE_DIR", ROOT_DIR / "cache"))
 MEDIA_CACHE_DIR = CACHE_DIR / "media"
 CONFIG_FILE = CACHE_DIR / "config.json"
@@ -134,6 +135,157 @@ def current_overrides():
         if entry and entry["expiresAt"] <= now_ms:
             overrides[key] = None
     return overrides
+
+# --- Remote browser control -------------------------------------------------
+# The kiosk Chromium exposes DevTools on localhost only. While someone watches
+# from the dashboard, we stream its screen and replay their clicks and keys.
+
+DEVTOOLS_PORT = int(os.environ.get("DEVTOOLS_PORT", "9222"))
+
+# key -> (code, windowsVirtualKeyCode, text sent on keyDown)
+SPECIAL_KEYS = {
+    "Enter": ("Enter", 13, "\r"),
+    "Backspace": ("Backspace", 8, ""),
+    "Tab": ("Tab", 9, ""),
+    "Escape": ("Escape", 27, ""),
+    "Delete": ("Delete", 46, ""),
+    "ArrowLeft": ("ArrowLeft", 37, ""),
+    "ArrowUp": ("ArrowUp", 38, ""),
+    "ArrowRight": ("ArrowRight", 39, ""),
+    "ArrowDown": ("ArrowDown", 40, ""),
+    "PageUp": ("PageUp", 33, ""),
+    "PageDown": ("PageDown", 34, ""),
+    "Home": ("Home", 36, ""),
+    "End": ("End", 35, ""),
+}
+
+class RemoteSession:
+    def __init__(self):
+        self.task = None
+        self.cdp = None
+        self.server_ws = None
+        self.msg_id = 0
+        self.size = (1920, 1080)  # CSS pixels of the page, updated from each frame
+
+    def start(self, server_ws):
+        self.server_ws = server_ws
+        if self.task and not self.task.done():
+            self.refresh()
+            return
+        self.task = asyncio.create_task(self.run())
+
+    def stop(self):
+        if self.task and not self.task.done():
+            self.task.cancel()
+        self.task = None
+
+    def refresh(self):
+        # Screencast only emits on change; restarting it yields a frame right away
+        if self.cdp:
+            asyncio.create_task(self.restart_screencast())
+
+    async def send_cdp(self, method, params=None):
+        self.msg_id += 1
+        await self.cdp.send(json.dumps({"id": self.msg_id, "method": method, "params": params or {}}))
+
+    async def send_server(self, payload):
+        try:
+            await self.server_ws.send(json.dumps(payload))
+        except Exception:
+            pass
+
+    async def start_screencast(self):
+        await self.send_cdp("Page.startScreencast", {
+            "format": "jpeg", "quality": 60, "maxWidth": 1280, "maxHeight": 1280, "everyNthFrame": 1,
+        })
+
+    async def restart_screencast(self):
+        try:
+            await self.send_cdp("Page.stopScreencast")
+            await self.start_screencast()
+        except Exception:
+            pass
+
+    def find_page_target(self):
+        with urllib.request.urlopen(f"http://127.0.0.1:{DEVTOOLS_PORT}/json/list", timeout=3) as resp:
+            targets = json.load(resp)
+        pages = [t for t in targets if t.get("type") == "page"]
+        # Prefer the viewer page; pushed pages and web slides are iframes inside it
+        for t in pages:
+            if t.get("url", "").startswith(f"http://localhost:{config['httpPort']}"):
+                return t
+        return pages[0] if pages else None
+
+    async def run(self):
+        try:
+            target = await asyncio.get_running_loop().run_in_executor(None, self.find_page_target)
+            if not target:
+                raise RuntimeError("no browser page found")
+            async with websockets.connect(target["webSocketDebuggerUrl"], max_size=None) as cdp:
+                self.cdp = cdp
+                await self.send_cdp("Page.enable")
+                await self.start_screencast()
+                await self.send_server({"type": "REMOTE_STATUS", "status": "live"})
+                print("🖱️ Remote control session started")
+                async for raw in cdp:
+                    msg = json.loads(raw)
+                    if msg.get("method") == "Page.screencastFrame":
+                        params = msg["params"]
+                        meta = params.get("metadata", {})
+                        self.size = (meta.get("deviceWidth") or self.size[0], meta.get("deviceHeight") or self.size[1])
+                        await self.send_server({
+                            "type": "REMOTE_FRAME",
+                            "data": params["data"],
+                            "width": self.size[0],
+                            "height": self.size[1],
+                        })
+                        # Ack after the frame went out, so a slow link throttles the stream instead of queueing
+                        await self.send_cdp("Page.screencastFrameAck", {"sessionId": params["sessionId"]})
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            print(f"Remote control unavailable: {e}", file=sys.stderr)
+            await self.send_server({"type": "REMOTE_STATUS", "status": "unavailable", "detail": str(e)})
+        finally:
+            self.cdp = None
+            print("🖱️ Remote control session ended")
+
+    async def handle_input(self, data):
+        if not self.cdp:
+            return
+        kind = data.get("kind")
+        try:
+            x = float(data.get("x", 0)) * self.size[0]
+            y = float(data.get("y", 0)) * self.size[1]
+            if kind == "move":
+                # Hover: menus and tooltips need the pointer to sit over them before a click
+                await self.send_cdp("Input.dispatchMouseEvent", {"type": "mouseMoved", "x": x, "y": y})
+            elif kind == "click":
+                base = {"x": x, "y": y, "button": "left", "clickCount": 1}
+                await self.send_cdp("Input.dispatchMouseEvent", {"type": "mouseMoved", "x": x, "y": y})
+                await self.send_cdp("Input.dispatchMouseEvent", {**base, "type": "mousePressed", "buttons": 1})
+                await self.send_cdp("Input.dispatchMouseEvent", {**base, "type": "mouseReleased", "buttons": 0})
+            elif kind == "wheel":
+                await self.send_cdp("Input.dispatchMouseEvent", {
+                    "type": "mouseWheel", "x": x, "y": y, "deltaX": 0, "deltaY": float(data.get("dy", 0)),
+                })
+            elif kind == "text":
+                text = str(data.get("text", ""))[:500]
+                if text:
+                    await self.send_cdp("Input.insertText", {"text": text})
+            elif kind == "key":
+                key = data.get("key")
+                if key in SPECIAL_KEYS:
+                    code, vk, text = SPECIAL_KEYS[key]
+                    down = {"type": "keyDown", "key": key, "code": code, "windowsVirtualKeyCode": vk}
+                    if text:
+                        down["text"] = text
+                    await self.send_cdp("Input.dispatchKeyEvent", down)
+                    await self.send_cdp("Input.dispatchKeyEvent", {"type": "keyUp", "key": key, "code": code, "windowsVirtualKeyCode": vk})
+        except Exception as e:
+            print(f"Remote input failed: {e}", file=sys.stderr)
+
+remote = RemoteSession()
 
 def start_http_server(port):
     server = HTTPServer(("0.0.0.0", port), ViewerHTTPHandler)
@@ -251,9 +403,11 @@ async def ws_loop():
                         print(f"Error handling message: {err}", file=sys.stderr)
 
                 heartbeat_task.cancel()
+                remote.stop()
 
         except Exception as e:
             is_online = False
+            remote.stop()
             print(f"⚠️ Connection lost ({e}). Running in Offline Cache mode...")
             await asyncio.sleep(min(backoff, 30))
             backoff = int(backoff * 1.5)
@@ -319,6 +473,18 @@ async def handle_ws_message(ws, msg):
         state = bool(msg.get("state", False))
         print(f"🖥️ Blank Screen: {state}")
         overrides["blank"] = state
+
+    elif mtype == "REMOTE_START":
+        remote.start(ws)
+
+    elif mtype == "REMOTE_REFRESH":
+        remote.refresh()
+
+    elif mtype == "REMOTE_STOP":
+        remote.stop()
+
+    elif mtype == "REMOTE_INPUT":
+        await remote.handle_input(msg.get("input") or {})
 
     elif mtype == "EMERGENCY_ALERT":
         print(f"🚨 EMERGENCY ALERT: {msg.get('title')} - {msg.get('message')}")

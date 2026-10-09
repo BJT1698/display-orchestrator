@@ -15,6 +15,7 @@ let
     export AGENT_PORT="''${AGENT_PORT:-9090}"
     export SERVER_URL="''${SERVER_URL:-ws://10.0.2.2:8080/ws}"
     export CLIENT_NAME="''${CLIENT_NAME:-Signage-Kiosk}"
+    export VIEWER_DIR="''${VIEWER_DIR:-${clientDir}/viewer}"
 
     mkdir -p "$CACHE_DIR/media"
 

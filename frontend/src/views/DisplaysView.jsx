@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RefreshCw, MoonStar, Sun, Globe, Trash2, RotateCw, Plus } from 'lucide-react';
+import { RefreshCw, MoonStar, Sun, Globe, Trash2, RotateCw, Plus, MousePointerClick } from 'lucide-react';
 import { api } from '../services/api';
 import { PageHeader, EmptyState, Tally, formatDuration } from '../components/ui';
 
@@ -9,7 +9,8 @@ export function DisplaysView({
   playlists,
   onRefresh,
   onOpenPairing,
-  onPushUrl
+  onPushUrl,
+  onRemoteControl
 }) {
   const [selectedGroup, setSelectedGroup] = useState('all');
   const [loadingAction, setLoadingAction] = useState(null);
@@ -149,6 +150,15 @@ export function DisplaysView({
                     </td>
                     <td>
                       <div className="flex items-center justify-end gap-0.5">
+                        <button
+                          onClick={() => onRemoteControl(display)}
+                          disabled={!isOnline}
+                          className="btn-icon"
+                          title="Control the browser"
+                          aria-label={`Control the browser on ${display.name}`}
+                        >
+                          <MousePointerClick className="w-4 h-4" />
+                        </button>
                         <button
                           onClick={() => onPushUrl(display)}
                           disabled={!isOnline}

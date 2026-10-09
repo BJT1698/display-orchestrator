@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { LayoutGrid, Tv, ListVideo, Image as ImageIcon, CalendarClock, ScrollText, Siren, KeyRound, RefreshCw } from 'lucide-react';
 import { api } from './services/api';
 import { DashboardView } from './views/DashboardView';
@@ -13,6 +13,7 @@ import { PushUrlModal } from './components/PushUrlModal';
 import { EmergencyAlertModal } from './components/EmergencyAlertModal';
 import { PlaylistPreviewModal } from './components/PlaylistPreviewModal';
 import { MediaUploadModal } from './components/MediaUploadModal';
+import { RemoteControlModal } from './components/RemoteControlModal';
 
 export function App() {
   const [currentTab, setCurrentTab] = useState('dashboard');
@@ -32,6 +33,25 @@ export function App() {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [pushUrlDisplay, setPushUrlDisplay] = useState(null);
   const [previewPlaylist, setPreviewPlaylist] = useState(null);
+  const [remoteDisplay, setRemoteDisplay] = useState(null);
+
+  // The live dashboard socket, shared with the remote control view
+  const socketRef = useRef(null);
+  const remoteListenersRef = useRef(new Set());
+
+  const sendWs = useCallback((msg) => {
+    const socket = socketRef.current;
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify(msg));
+      return true;
+    }
+    return false;
+  }, []);
+
+  const subscribeRemote = useCallback((listener) => {
+    remoteListenersRef.current.add(listener);
+    return () => remoteListenersRef.current.delete(listener);
+  }, []);
 
   // Fetch all initial data
   const loadData = useCallback(async () => {
@@ -76,6 +96,7 @@ export function App() {
     const connect = () => {
       try {
         socket = new WebSocket(wsUrl);
+        socketRef.current = socket;
 
         socket.onopen = () => {
           setWsConnected(true);
@@ -92,6 +113,7 @@ export function App() {
 
         socket.onclose = () => {
           setWsConnected(false);
+          remoteListenersRef.current.forEach((listener) => listener({ type: 'REMOTE_STATUS', status: 'disconnected' }));
           reconnectTimeout = setTimeout(connect, 3000);
         };
 
@@ -104,6 +126,11 @@ export function App() {
     };
 
     const handleWsMessage = (msg) => {
+      if (msg.type === 'REMOTE_FRAME' || msg.type === 'REMOTE_STATUS') {
+        remoteListenersRef.current.forEach((listener) => listener(msg));
+        return;
+      }
+
       switch (msg.type) {
         case 'INIT_STATE':
           if (msg.data.displays) setDisplays(msg.data.displays);
@@ -253,6 +280,7 @@ export function App() {
               onRefresh={loadData}
               onOpenPairing={() => setIsPairingOpen(true)}
               onPushUrl={(d) => setPushUrlDisplay(d)}
+              onRemoteControl={(d) => setRemoteDisplay(d)}
             />
           )}
 
@@ -323,6 +351,16 @@ export function App() {
         onClose={() => setPreviewPlaylist(null)}
         playlist={previewPlaylist}
       />
+
+      {remoteDisplay && (
+        <RemoteControlModal
+          display={remoteDisplay}
+          wsConnected={wsConnected}
+          sendWs={sendWs}
+          subscribe={subscribeRemote}
+          onClose={() => setRemoteDisplay(null)}
+        />
+      )}
 
       <MediaUploadModal
         isOpen={isUploadOpen}
