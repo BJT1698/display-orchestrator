@@ -4,6 +4,7 @@
   imports = [
     ../../modules/client-appliance.nix
     ../../modules/first-boot-wizard.nix
+    ../../modules/laptop.nix
   ];
 
   # Bootloader Configuration
