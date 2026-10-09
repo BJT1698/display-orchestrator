@@ -2,6 +2,7 @@
 
 let
   repoSource = ../..;
+  wifiSetup = import ./wifi-setup-script.nix { inherit pkgs lib; };
   installerScript = pkgs.writeShellScriptBin "signage-installer" ''
     set -euo pipefail
 
@@ -16,6 +17,9 @@ let
     clear
     whiptail --title "Digital Signage Appliance Installer" \
       --msgbox "Welcome to the Digital Signage Client Appliance Installer.\n\nThis wizard will guide you through installing the custom Kiosk OS onto this machine." 12 70
+
+    # 0. The installation downloads packages: offer Wi-Fi when there is no wired connection
+    ${wifiSetup}/bin/signage-wifi-setup
 
     # 1. Discover Disks safely without word splitting issues
     MENU_OPTIONS=()
@@ -108,6 +112,13 @@ let
 
     nixos-install --flake "/mnt/etc/nixos#target-system" --no-root-passwd --no-channel-copy --show-trace
 
+    # Carry Wi-Fi networks configured during installation over to the installed screen
+    if ls /etc/NetworkManager/system-connections/*.nmconnection >/dev/null 2>&1; then
+      mkdir -p /mnt/etc/NetworkManager/system-connections
+      cp /etc/NetworkManager/system-connections/*.nmconnection /mnt/etc/NetworkManager/system-connections/
+      chmod 600 /mnt/etc/NetworkManager/system-connections/*.nmconnection
+    fi
+
     whiptail --title "Success!" \
       --msgbox "Installation completed successfully!\n\nThe system will now reboot into the Digital Signage Appliance." 10 70
 
@@ -118,6 +129,7 @@ in
 {
   environment.systemPackages = [
     installerScript
+    wifiSetup
     pkgs.newt
     pkgs.parted
     pkgs.dosfstools

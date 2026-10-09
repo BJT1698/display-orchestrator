@@ -37,6 +37,9 @@
   time.timeZone = "UTC";
   i18n.defaultLocale = "en_US.UTF-8";
 
+  # Vendor firmware for Wi-Fi (e.g. Intel iwlwifi), Bluetooth and GPU microcode
+  hardware.enableRedistributableFirmware = true;
+
   # Hardware acceleration
   hardware.graphics = {
     enable = true;

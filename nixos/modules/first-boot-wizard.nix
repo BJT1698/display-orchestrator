@@ -1,6 +1,7 @@
 { config, pkgs, lib, ... }:
 
 let
+  wifiSetup = import ./wifi-setup-script.nix { inherit pkgs lib; };
   firstBootScript = pkgs.writeShellScriptBin "signage-first-boot-wizard" ''
     set -euo pipefail
     # Every tool the script calls must be listed here: systemd units get a minimal PATH
@@ -16,6 +17,9 @@ let
     clear
     whiptail --title "Digital Signage - First Boot Provisioning" \
       --msgbox "Welcome to your new Digital Signage Display Node.\n\nPlease configure the connection to your Server Orchestrator." 10 70
+
+    # Offer Wi-Fi when the screen is not online yet (e.g. no cable); returns at once otherwise
+    ${wifiSetup}/bin/signage-wifi-setup || true
 
     while true; do
       SERVER_IP=$(whiptail --title "Server Orchestrator Address" \
@@ -75,6 +79,7 @@ in
 {
   environment.systemPackages = [
     firstBootScript
+    wifiSetup
     pkgs.newt
     pkgs.curl
   ];
@@ -85,7 +90,7 @@ in
     wantedBy = [ "multi-user.target" ];
     # Owns tty1 until it finishes; the kiosk (cage on tty1) starts afterwards
     before = [ "cage-tty1.service" "signage-agent.service" ];
-    after = [ "network-online.target" ];
+    after = [ "network-online.target" "NetworkManager.service" ];
     wants = [ "network-online.target" ];
     unitConfig = {
       ConditionPathExists = "!/etc/signage/client.env";
