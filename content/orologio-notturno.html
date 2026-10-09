@@ -1,0 +1,191 @@
+<!-- Orologio notturno: screensaver per gli orari non lavorativi.
+     Snippet HTML per la libreria Media (tipo "HTML snippet"). Fondo nero, ora grande e tenue,
+     una linea che si riempie nel corso del minuto e una lenta deriva del blocco per non
+     lasciare immagini fisse sui pannelli durante la notte. -->
+<style>
+  @font-face {
+    font-family: 'Archivo Player';
+    font-weight: 100 900;
+    font-stretch: 62% 125%;
+    src: url(fonts/archivo-latin-standard-normal.woff2) format('woff2-variations');
+  }
+
+  .nc {
+    position: fixed;
+    inset: 0;
+    background: #000;
+    color: #B8BEC6;
+    font-family: 'Archivo Player', 'Archivo Variable', system-ui, sans-serif;
+    font-variant-numeric: tabular-nums;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    cursor: none;
+  }
+
+  /* The whole block wanders a few percent every half minute; slow enough to go unnoticed */
+  .nc-block {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    transition: transform 30s linear;
+    will-change: transform;
+  }
+
+  .nc-time {
+    display: flex;
+    align-items: baseline;
+    font-size: 30vmin;
+    font-stretch: 78%;
+    font-weight: 300;
+    line-height: 0.9;
+    letter-spacing: -0.01em;
+  }
+
+  .nc-digit {
+    position: relative;
+    display: inline-block;
+    width: 0.47em;
+    height: 0.9em;
+    overflow: hidden;
+    text-align: center;
+  }
+  .nc-digit span {
+    position: absolute;
+    inset: 0;
+  }
+
+  /* Two small round dots: the font's colon is too heavy next to light digits */
+  .nc-colon {
+    position: relative;
+    width: 0.2em;
+    height: 0.9em;
+  }
+  .nc-colon::before,
+  .nc-colon::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    width: 0.055em;
+    height: 0.055em;
+    margin-left: -0.0275em;
+    border-radius: 50%;
+    background: #6B727C;
+  }
+  .nc-colon::before { top: 0.3em; }
+  .nc-colon::after { top: 0.6em; }
+
+  /* Minute progress: one quiet line instead of ticking seconds */
+  .nc-minute {
+    margin-top: 3.2vmin;
+    width: 100%;
+    height: 0.35vmin;
+    min-height: 2px;
+    background: #1E2126;
+    overflow: hidden;
+  }
+  .nc-minute-fill {
+    height: 100%;
+    width: 100%;
+    background: #6B727C;
+    transform-origin: left center;
+    transform: scaleX(0);
+  }
+
+  .nc-date {
+    margin-top: 2.6vmin;
+    font-size: 3.4vmin;
+    font-weight: 400;
+    color: #6B727C;
+    letter-spacing: 0.01em;
+  }
+  .nc-date::first-letter {
+    text-transform: uppercase;
+  }
+</style>
+
+<div class="nc">
+  <div class="nc-block" id="nc-block">
+    <div class="nc-time" aria-live="off">
+      <span class="nc-digit" id="nc-h1"></span>
+      <span class="nc-digit" id="nc-h2"></span>
+      <span class="nc-colon" aria-hidden="true"></span>
+      <span class="nc-digit" id="nc-m1"></span>
+      <span class="nc-digit" id="nc-m2"></span>
+    </div>
+    <div class="nc-minute"><div class="nc-minute-fill" id="nc-fill"></div></div>
+    <div class="nc-date" id="nc-date"></div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var slots = ['nc-h1', 'nc-h2', 'nc-m1', 'nc-m2'].map(function (id) { return document.getElementById(id); });
+    var fill = document.getElementById('nc-fill');
+    var dateEl = document.getElementById('nc-date');
+    var block = document.getElementById('nc-block');
+    var shown = ['', '', '', ''];
+    var dateFormat = new Intl.DateTimeFormat('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
+
+    // A digit rolls up when it changes: old value leaves upwards, new one arrives from below
+    function setDigit(i, value, animate) {
+      if (shown[i] === value) return;
+      var slot = slots[i];
+      var next = document.createElement('span');
+      next.textContent = value;
+      slot.appendChild(next);
+      var prev = slot.children.length > 1 ? slot.children[0] : null;
+      if (animate && prev && next.animate) {
+        var timing = { duration: 700, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)', fill: 'forwards' };
+        next.animate([{ transform: 'translateY(100%)', opacity: 0 }, { transform: 'translateY(0)', opacity: 1 }], timing);
+        prev.animate([{ transform: 'translateY(0)', opacity: 1 }, { transform: 'translateY(-100%)', opacity: 0 }], timing)
+          .onfinish = function () { prev.remove(); };
+      } else if (prev) {
+        prev.remove();
+      }
+      shown[i] = value;
+    }
+
+    function render(animate) {
+      var now = new Date();
+      var hh = String(now.getHours()).padStart(2, '0');
+      var mm = String(now.getMinutes()).padStart(2, '0');
+      var digits = (hh + mm).split('');
+      for (var i = 0; i < 4; i++) setDigit(i, digits[i], animate);
+      dateEl.textContent = dateFormat.format(now);
+    }
+
+    // Fill the line once per minute, then restart it instantly at :00
+    function runMinute() {
+      var now = new Date();
+      var elapsed = now.getSeconds() * 1000 + now.getMilliseconds();
+      var remaining = 60000 - elapsed;
+      fill.style.transition = 'none';
+      fill.style.transform = 'scaleX(' + (elapsed / 60000) + ')';
+      void fill.offsetWidth;
+      fill.style.transition = 'transform ' + remaining + 'ms linear';
+      fill.style.transform = 'scaleX(1)';
+      setTimeout(function () {
+        render(true);
+        runMinute();
+      }, remaining + 20);
+    }
+
+    // Slow Lissajous wander within a small margin to spare the panels a static image
+    var t0 = Date.now();
+    function drift() {
+      var t = (Date.now() - t0) / 1000;
+      var x = Math.sin(t / 290) * 7;
+      var y = Math.sin(t / 410 + 1.3) * 6;
+      block.style.transform = 'translate(' + x.toFixed(2) + 'vw, ' + y.toFixed(2) + 'vh)';
+    }
+
+    render(false);
+    runMinute();
+    drift();
+    setInterval(drift, 30000);
+    // Re-check the time now and then, in case the device clock was adjusted
+    setInterval(function () { render(true); }, 15000);
+  })();
+</script>

@@ -35,7 +35,8 @@
   networking.useDHCP = lib.mkDefault true;
 
   # Timezone & Locale
-  time.timeZone = "UTC";
+  # Clocks on screen and schedules are local Italian time
+  time.timeZone = "Europe/Rome";
   i18n.defaultLocale = "en_US.UTF-8";
 
   # Vendor firmware for Wi-Fi (e.g. Intel iwlwifi), Bluetooth and GPU microcode
