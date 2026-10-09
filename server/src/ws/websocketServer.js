@@ -15,6 +15,7 @@ class DisplayWebSocketHub {
     this.wss = null;
     this.displaySockets = new Map(); // uuid -> ws
     this.dashboardSockets = new Set(); // Set of ws
+    this.remoteViewers = new Map(); // display uuid -> Set of dashboard ws watching its browser
     this.heartbeatTimer = null;
   }
 
@@ -112,6 +113,11 @@ class DisplayWebSocketHub {
   }
 
   handleMessage(ws, msg) {
+    if (ws.clientType === 'dashboard') {
+      this.handleDashboardMessage(ws, msg);
+      return;
+    }
+
     switch (msg.type) {
       case 'HANDSHAKE':
         this.handleHandshake(ws, msg);
@@ -135,6 +141,11 @@ class DisplayWebSocketHub {
 
       case 'LOG_EVENT':
         this.handleLogEvent(ws, msg);
+        break;
+
+      case 'REMOTE_FRAME':
+      case 'REMOTE_STATUS':
+        this.relayRemoteToViewers(ws.displayUuid, msg);
         break;
 
       default:
@@ -291,11 +302,84 @@ class DisplayWebSocketHub {
     this.log(level || 'info', 'display', uuid, message, payload);
   }
 
+  // --- Remote browser control (dashboard <-> display relay) ---
+
+  handleDashboardMessage(ws, msg) {
+    const uuid = msg.uuid;
+    if (!uuid) return;
+
+    switch (msg.type) {
+      case 'REMOTE_START': {
+        let viewers = this.remoteViewers.get(uuid);
+        if (!viewers) {
+          viewers = new Set();
+          this.remoteViewers.set(uuid, viewers);
+        }
+        const first = viewers.size === 0;
+        viewers.add(ws);
+        // A later viewer joins the running stream; ask for a fresh frame so it does not wait for a change
+        const sent = this.sendToDisplay(uuid, { type: first ? 'REMOTE_START' : 'REMOTE_REFRESH' });
+        if (!sent) {
+          this.sendRemoteStatus(ws, uuid, 'offline');
+        } else if (first) {
+          const display = db.getOne('SELECT name FROM displays WHERE uuid = ?', uuid);
+          this.log('command', 'dashboard', uuid, `Remote control started on '${display?.name || uuid}'`);
+        }
+        break;
+      }
+
+      case 'REMOTE_STOP':
+        this.removeRemoteViewer(uuid, ws);
+        break;
+
+      case 'REMOTE_INPUT':
+        // Only a dashboard that opened the session may drive the browser
+        if (this.remoteViewers.get(uuid)?.has(ws) && msg.input) {
+          this.sendToDisplay(uuid, { type: 'REMOTE_INPUT', input: msg.input });
+        }
+        break;
+
+      default:
+        break;
+    }
+  }
+
+  removeRemoteViewer(uuid, ws) {
+    const viewers = this.remoteViewers.get(uuid);
+    if (!viewers) return;
+    viewers.delete(ws);
+    if (viewers.size === 0) {
+      this.remoteViewers.delete(uuid);
+      this.sendToDisplay(uuid, { type: 'REMOTE_STOP' });
+    }
+  }
+
+  relayRemoteToViewers(uuid, msg) {
+    const viewers = uuid && this.remoteViewers.get(uuid);
+    if (!viewers) return;
+    const payload = JSON.stringify({ ...msg, uuid });
+    for (const viewer of viewers) {
+      if (viewer.readyState === WebSocket.OPEN) viewer.send(payload);
+    }
+  }
+
+  sendRemoteStatus(ws, uuid, status, detail) {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'REMOTE_STATUS', uuid, status, detail }));
+    }
+  }
+
   handleClose(ws) {
     if (ws.clientType === 'dashboard') {
       this.dashboardSockets.delete(ws);
-    } else if (ws.displayUuid) {
+      for (const uuid of [...this.remoteViewers.keys()]) {
+        this.removeRemoteViewer(uuid, ws);
+      }
+    } else if (ws.displayUuid && this.displaySockets.get(ws.displayUuid) === ws) {
+      // Only the current socket of a display counts: an old one closing late must not unregister the new one
       this.displaySockets.delete(ws.displayUuid);
+      this.relayRemoteToViewers(ws.displayUuid, { type: 'REMOTE_STATUS', status: 'offline' });
+      this.remoteViewers.delete(ws.displayUuid);
       db.run(
         `UPDATE displays SET status = 'offline', updated_at = datetime('now') WHERE uuid = ?`,
         ws.displayUuid
