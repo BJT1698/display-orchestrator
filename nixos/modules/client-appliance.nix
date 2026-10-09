@@ -50,7 +50,7 @@ in
   services.cage = {
     enable = true;
     user = "kiosk";
-    program = "${pkgs.chromium}/bin/chromium --no-sandbox --ozone-platform=wayland --enable-features=UseOzonePlatform --kiosk --noerrdialogs --disable-infobars --check-for-update-interval=31536000 --overscroll-history-navigation=0 --disable-pinch --disable-session-crashed-bubble --autoplay-policy=no-user-gesture-required --remote-debugging-port=9222 --remote-debugging-address=0.0.0.0 --app=http://localhost:9090";
+    program = "${pkgs.chromium}/bin/chromium --no-sandbox --ozone-platform=wayland --enable-features=UseOzonePlatform --kiosk --noerrdialogs --disable-infobars --check-for-update-interval=31536000 --overscroll-history-navigation=0 --disable-pinch --disable-session-crashed-bubble --autoplay-policy=no-user-gesture-required --remote-debugging-port=9222 --user-data-dir=/home/kiosk/.config/chromium-kiosk --app=http://localhost:9090";
     extraArguments = [ "-s" ]; # Silent mode
   };
 
