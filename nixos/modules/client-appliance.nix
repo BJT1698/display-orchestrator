@@ -55,6 +55,14 @@ in
     extraArguments = [ "-s" ]; # Silent mode
   };
 
+  # Screen sharing (WebRTC) from the dashboard: a fixed UDP range opened in the firewall, and the
+  # kiosk announces its real LAN address instead of an mDNS name, so any sender on the LAN can reach it
+  environment.etc."chromium/policies/managed/signage-webrtc.json".text = builtins.toJSON {
+    WebRtcUdpPortRange = "50000-50100";
+    WebRtcLocalIpsAllowedUrls = [ "http://localhost:9090" ];
+  };
+  networking.firewall.allowedUDPPortRanges = [ { from = 50000; to = 50100; } ];
+
   # Background Signage Agent Service
   systemd.services.signage-agent = {
     description = "Digital Signage Local Agent Service";

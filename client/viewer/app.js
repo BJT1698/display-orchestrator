@@ -31,6 +31,10 @@
   let slideTimer = null;
   let reloadToken = null;
   let pushedUrl = null;
+  const castOverlay = document.getElementById('cast-overlay');
+  const castVideo = document.getElementById('cast-video');
+  let castId = null;
+  let castPc = null;
 
   function init() {
     startClock();
@@ -103,6 +107,8 @@
     }
     emergencyOverlay.classList.toggle('visible', Boolean(emergency));
 
+    applyCast(o.cast);
+
     const push = o.push && o.push.expiresAt > now ? o.push : null;
     if (push) {
       if (pushedUrl !== push.url) {
@@ -115,6 +121,74 @@
       pushContainer.classList.remove('visible');
       pushIframe.src = 'about:blank';
     }
+  }
+
+  // Screen shared from a dashboard: answer its WebRTC offer, show the stream until the cast is stopped
+  function applyCast(cast) {
+    if (cast && cast.id && cast.id !== castId) {
+      startCast(cast);
+    } else if (!cast && castId) {
+      stopCast();
+    }
+  }
+
+  function postCast(path, body) {
+    return fetch('/api/agent/' + path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).catch(() => {});
+  }
+
+  async function startCast(cast) {
+    stopCast();
+    castId = cast.id;
+    const id = cast.id;
+    // LAN only: host candidates are enough, no STUN/TURN
+    const pc = new RTCPeerConnection({ iceServers: [] });
+    castPc = pc;
+
+    pc.ontrack = (event) => {
+      if (castId !== id) return;
+      castVideo.srcObject = event.streams[0] || new MediaStream([event.track]);
+      castVideo.play().catch(() => {});
+    };
+    // Cover the playlist only once pictures actually arrive, never with a black box
+    castVideo.onplaying = () => {
+      if (castId === id) castOverlay.classList.add('visible');
+    };
+    pc.onconnectionstatechange = () => {
+      if (castId !== id) return;
+      postCast('cast-status', { castId: id, status: pc.connectionState });
+      if (pc.connectionState === 'failed') stopCast();
+    };
+
+    try {
+      await pc.setRemoteDescription({ type: 'offer', sdp: cast.sdp });
+      await pc.setLocalDescription(await pc.createAnswer());
+      // Send one complete answer instead of trickling candidates through the polling agent
+      await new Promise((resolve) => {
+        if (pc.iceGatheringState === 'complete') return resolve();
+        const done = () => { if (pc.iceGatheringState === 'complete') resolve(); };
+        pc.addEventListener('icegatheringstatechange', done);
+        setTimeout(resolve, 3000);
+      });
+      if (castId !== id) return;
+      await postCast('cast-answer', { castId: id, sdp: pc.localDescription.sdp });
+    } catch (e) {
+      postCast('cast-status', { castId: id, status: 'error: ' + e.message });
+      stopCast();
+    }
+  }
+
+  function stopCast() {
+    castId = null;
+    if (castPc) {
+      castPc.close();
+      castPc = null;
+    }
+    castVideo.srcObject = null;
+    castOverlay.classList.remove('visible');
   }
 
   function shortId(uuid) {

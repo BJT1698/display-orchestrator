@@ -16,6 +16,7 @@ class DisplayWebSocketHub {
     this.displaySockets = new Map(); // uuid -> ws
     this.dashboardSockets = new Set(); // Set of ws
     this.remoteViewers = new Map(); // display uuid -> Set of dashboard ws watching its browser
+    this.casters = new Map(); // display uuid -> dashboard ws currently sharing its screen to it
     this.heartbeatTimer = null;
   }
 
@@ -147,6 +148,15 @@ class DisplayWebSocketHub {
       case 'REMOTE_STATUS':
         this.relayRemoteToViewers(ws.displayUuid, msg);
         break;
+
+      case 'CAST_ANSWER':
+      case 'CAST_STATUS': {
+        const caster = ws.displayUuid && this.casters.get(ws.displayUuid);
+        if (caster && caster.readyState === WebSocket.OPEN) {
+          caster.send(JSON.stringify({ ...msg, uuid: ws.displayUuid }));
+        }
+        break;
+      }
 
       default:
         console.log(`Unknown message type: ${msg.type}`);
@@ -332,6 +342,32 @@ class DisplayWebSocketHub {
         this.removeRemoteViewer(uuid, ws);
         break;
 
+      // Screen sharing: the server only relays the WebRTC offer/answer, media flows peer to peer on the LAN
+      case 'CAST_OFFER': {
+        if (!msg.sdp || !msg.castId) break;
+        const previous = this.casters.get(uuid);
+        if (previous && previous !== ws && previous.readyState === WebSocket.OPEN) {
+          previous.send(JSON.stringify({ type: 'CAST_STATUS', uuid, castId: null, status: 'replaced' }));
+        }
+        this.casters.set(uuid, ws);
+        const sent = this.sendToDisplay(uuid, { type: 'CAST_OFFER', castId: msg.castId, sdp: msg.sdp });
+        if (!sent) {
+          this.casters.delete(uuid);
+          ws.send(JSON.stringify({ type: 'CAST_STATUS', uuid, castId: msg.castId, status: 'offline' }));
+        } else {
+          const display = db.getOne('SELECT name FROM displays WHERE uuid = ?', uuid);
+          this.log('command', 'dashboard', uuid, `Screen sharing started on '${display?.name || uuid}'`);
+        }
+        break;
+      }
+
+      case 'CAST_STOP':
+        if (this.casters.get(uuid) === ws) {
+          this.casters.delete(uuid);
+          this.sendToDisplay(uuid, { type: 'CAST_STOP' });
+        }
+        break;
+
       case 'REMOTE_INPUT':
         // Only a dashboard that opened the session may drive the browser
         if (this.remoteViewers.get(uuid)?.has(ws) && msg.input) {
@@ -375,11 +411,23 @@ class DisplayWebSocketHub {
       for (const uuid of [...this.remoteViewers.keys()]) {
         this.removeRemoteViewer(uuid, ws);
       }
+      // A closed dashboard can no longer feed its stream; let the screen go back to its playlist
+      for (const [uuid, caster] of [...this.casters]) {
+        if (caster === ws) {
+          this.casters.delete(uuid);
+          this.sendToDisplay(uuid, { type: 'CAST_STOP' });
+        }
+      }
     } else if (ws.displayUuid && this.displaySockets.get(ws.displayUuid) === ws) {
       // Only the current socket of a display counts: an old one closing late must not unregister the new one
       this.displaySockets.delete(ws.displayUuid);
       this.relayRemoteToViewers(ws.displayUuid, { type: 'REMOTE_STATUS', status: 'offline' });
       this.remoteViewers.delete(ws.displayUuid);
+      const caster = this.casters.get(ws.displayUuid);
+      if (caster && caster.readyState === WebSocket.OPEN) {
+        caster.send(JSON.stringify({ type: 'CAST_STATUS', uuid: ws.displayUuid, status: 'offline' }));
+      }
+      this.casters.delete(ws.displayUuid);
       db.run(
         `UPDATE displays SET status = 'offline', updated_at = datetime('now') WHERE uuid = ?`,
         ws.displayUuid

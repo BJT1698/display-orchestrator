@@ -85,6 +85,35 @@ class ViewerHTTPHandler(SimpleHTTPRequestHandler):
             req_path = "index.html"
         return str(VIEWER_DIR / req_path)
 
+    def end_headers(self):
+        # Viewer files must be revalidated, or Chromium keeps running an old app.js after an update
+        if not self.path.startswith("/media/"):
+            self.send_header("Cache-Control", "no-cache")
+        super().end_headers()
+
+    def do_POST(self):
+        # Only the local viewer may post here (the port is firewalled, but be explicit)
+        if self.client_address[0] not in ("127.0.0.1", "::1"):
+            self.send_error(403)
+            return
+        if self.path not in ("/api/agent/cast-answer", "/api/agent/cast-status"):
+            self.send_error(404)
+            return
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+            body = json.loads(self.rfile.read(length) or b"{}")
+        except Exception:
+            self.send_error(400)
+            return
+        cast = overrides.get("cast")
+        if cast and body.get("castId") == cast["id"]:
+            if self.path.endswith("cast-answer"):
+                send_to_server({"type": "CAST_ANSWER", "castId": cast["id"], "sdp": body.get("sdp", "")})
+            else:
+                send_to_server({"type": "CAST_STATUS", "castId": cast["id"], "status": body.get("status", "")})
+        self.send_response(204)
+        self.end_headers()
+
     def do_GET(self):
         if self.path == "/api/agent/state":
             self.send_response(200)
@@ -117,9 +146,18 @@ overrides = {
     "blank": False,
     "emergency": None,   # {"title", "message", "expiresAt"}
     "reloadToken": 0,    # bumped on FORCE_RELOAD; the viewer reloads when it changes
+    "cast": None,        # {"id", "sdp"}: WebRTC offer from a dashboard sharing its screen
 }
 start_time = time.time()
 active_ws_connection = None
+event_loop = None  # the asyncio loop running ws_loop, so HTTP threads can send through it
+
+def send_to_server(payload):
+    """Send a message to the server from any thread."""
+    ws, loop = active_ws_connection, event_loop
+    if ws is None or loop is None:
+        return
+    asyncio.run_coroutine_threadsafe(ws.send(json.dumps(payload)), loop)
 
 def expires_at(duration_seconds, default):
     try:
@@ -362,7 +400,8 @@ def get_server_http_base(ws_url):
     return f"{scheme}://{parsed.netloc}"
 
 async def ws_loop():
-    global is_online, active_pairing_code, active_ws_connection
+    global is_online, active_pairing_code, active_ws_connection, event_loop
+    event_loop = asyncio.get_running_loop()
     backoff = 2
 
     while True:
@@ -404,10 +443,12 @@ async def ws_loop():
 
                 heartbeat_task.cancel()
                 remote.stop()
+                overrides["cast"] = None  # the stream cannot outlive the signaling link
 
         except Exception as e:
             is_online = False
             remote.stop()
+            overrides["cast"] = None
             print(f"⚠️ Connection lost ({e}). Running in Offline Cache mode...")
             await asyncio.sleep(min(backoff, 30))
             backoff = int(backoff * 1.5)
@@ -473,6 +514,14 @@ async def handle_ws_message(ws, msg):
         state = bool(msg.get("state", False))
         print(f"🖥️ Blank Screen: {state}")
         overrides["blank"] = state
+
+    elif mtype == "CAST_OFFER":
+        print("📺 Screen sharing offer received")
+        overrides["cast"] = {"id": msg.get("castId"), "sdp": msg.get("sdp", "")}
+
+    elif mtype == "CAST_STOP":
+        print("📺 Screen sharing stopped")
+        overrides["cast"] = None
 
     elif mtype == "REMOTE_START":
         remote.start(ws)
