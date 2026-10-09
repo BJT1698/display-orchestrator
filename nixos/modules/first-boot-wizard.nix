@@ -3,7 +3,8 @@
 let
   firstBootScript = pkgs.writeShellScriptBin "signage-first-boot-wizard" ''
     set -euo pipefail
-    export PATH="${lib.makeBinPath [ pkgs.newt pkgs.curl pkgs.coreutils pkgs.util-linux pkgs.systemd ]}:$PATH"
+    # Every tool the script calls must be listed here: systemd units get a minimal PATH
+    export PATH="${lib.makeBinPath [ pkgs.newt pkgs.curl pkgs.coreutils pkgs.util-linux pkgs.systemd pkgs.ncurses pkgs.gnugrep ]}:$PATH"
 
     mkdir -p /etc/signage /var/cache/signage/media
 
@@ -44,10 +45,10 @@ let
     done
 
     CLIENT_NAME=$(whiptail --title "Display Name" \
-      --inputbox "Enter a friendly display name for this screen:" 10 70 "Signage-$(hostname)" 3>&1 1>&2 2>&3)
+      --inputbox "Enter a friendly display name for this screen:" 10 70 "Signage-$(uname -n)" 3>&1 1>&2 2>&3)
 
     if [ -z "$CLIENT_NAME" ]; then
-      CLIENT_NAME="Signage-$(hostname)"
+      CLIENT_NAME="Signage-$(uname -n)"
     fi
 
     DEVICE_UUID=$(uuidgen 2>/dev/null || cat /proc/sys/kernel/random/uuid)
@@ -66,7 +67,9 @@ EOF
     whiptail --title "Provisioning Complete" \
       --msgbox "Setup completed!\n\nStarting Kiosk Display Engine..." 8 60
 
-    systemctl start signage-kiosk.service || true
+    # The agent may already be running with defaults; restart it to load the new config
+    # --no-block: the agent is ordered after this unit, a blocking restart would wait on us forever
+    systemctl restart --no-block signage-agent.service || true
   '';
 in
 {
@@ -80,9 +83,14 @@ in
   systemd.services.signage-first-boot = {
     description = "Digital Signage First-Boot Setup Wizard";
     wantedBy = [ "multi-user.target" ];
+    # Owns tty1 until it finishes; the kiosk (cage on tty1) starts afterwards
+    before = [ "cage-tty1.service" "signage-agent.service" ];
+    after = [ "network-online.target" ];
+    wants = [ "network-online.target" ];
     unitConfig = {
       ConditionPathExists = "!/etc/signage/client.env";
     };
+    environment.TERM = "linux";
     serviceConfig = {
       Type = "oneshot";
       StandardInput = "tty";
