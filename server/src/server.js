@@ -100,10 +100,18 @@ server.listen(config.port, config.host, () => {
 // Graceful shutdown
 const shutdown = () => {
   console.log('Shutting down server gracefully...');
+  // Displays keep their sockets open forever, so close them or server.close() never returns
+  if (wsHub.heartbeatTimer) clearInterval(wsHub.heartbeatTimer);
+  if (wsHub.wss) {
+    for (const client of wsHub.wss.clients) client.terminate();
+    wsHub.wss.close();
+  }
   server.close(() => {
     console.log('Server closed.');
     process.exit(0);
   });
+  server.closeAllConnections();
+  setTimeout(() => process.exit(0), 5000).unref();
 };
 
 process.on('SIGTERM', shutdown);

@@ -4,6 +4,12 @@ import { db } from '../db/database.js';
 import { config } from '../config.js';
 import { schedulerService } from '../services/schedulerService.js';
 
+// Codes are stored as "ABC-DEF"; accept what people type ("abcdef", "ABC DEF")
+function normalizePairingCode(code) {
+  const clean = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return clean.length === 6 ? `${clean.slice(0, 3)}-${clean.slice(3)}` : String(code || '').toUpperCase();
+}
+
 class DisplayWebSocketHub {
   constructor() {
     this.wss = null;
@@ -61,7 +67,22 @@ class DisplayWebSocketHub {
   handleDashboardConnection(ws) {
     this.dashboardSockets.add(ws);
     // Send initial snapshot
-    const displays = db.all('SELECT * FROM displays ORDER BY name ASC');
+    // Same shape as GET /api/displays, so the dashboard does not lose joined fields
+    const displays = db.all(`
+      SELECT d.*, g.name AS group_name, p.name AS current_playlist_name
+      FROM displays d
+      LEFT JOIN display_groups g ON d.group_id = g.id
+      LEFT JOIN playlists p ON d.current_playlist_id = p.id
+      ORDER BY d.name ASC
+    `).map((d) => {
+      let metrics = {};
+      try {
+        metrics = d.metrics ? JSON.parse(d.metrics) : {};
+      } catch (e) {
+        metrics = {};
+      }
+      return { ...d, metrics };
+    });
     const pairings = db.all("SELECT * FROM pairing_requests WHERE status = 'pending' ORDER BY created_at DESC");
     
     ws.send(JSON.stringify({
@@ -180,6 +201,9 @@ class DisplayWebSocketHub {
       const pairingCode = this.generatePairingCode();
       const deviceToken = crypto.randomBytes(24).toString('hex');
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+      // uuid is unique: drop a finished request, e.g. one approved while the screen was offline
+      db.run("DELETE FROM pairing_requests WHERE uuid = ? AND status != 'pending'", uuid);
 
       db.run(
         `INSERT INTO pairing_requests (pairing_code, uuid, client_name, ip_address, token, expires_at)
@@ -377,7 +401,7 @@ class DisplayWebSocketHub {
   approvePairing(pairingCode, customName, groupId) {
     const pairing = db.getOne(
       "SELECT * FROM pairing_requests WHERE pairing_code = ? AND status = 'pending'",
-      pairingCode
+      normalizePairingCode(pairingCode)
     );
     if (!pairing) return { success: false, error: 'Pairing code not found or expired' };
 
@@ -477,10 +501,12 @@ class DisplayWebSocketHub {
       }
 
       // 2. Mark displays offline if last heartbeat > 35s ago
-      const timeoutThreshold = new Date(Date.now() - config.heartbeatTimeoutMs).toISOString();
+      // Compare inside SQLite: last_heartbeat is stored as datetime('now') ("YYYY-MM-DD HH:MM:SS"),
+      // which does not sort correctly against an ISO string with a "T"
+      const timeoutModifier = `-${Math.round(config.heartbeatTimeoutMs / 1000)} seconds`;
       const deadDisplays = db.all(
-        "SELECT uuid, name FROM displays WHERE status = 'online' AND (last_heartbeat IS NULL OR last_heartbeat < ?)",
-        timeoutThreshold
+        "SELECT uuid, name FROM displays WHERE status = 'online' AND (last_heartbeat IS NULL OR last_heartbeat < datetime('now', ?))",
+        timeoutModifier
       );
 
       for (const d of deadDisplays) {
