@@ -27,7 +27,8 @@ except ImportError:
 # Paths & Directories
 BASE_DIR = Path(__file__).resolve().parent
 ROOT_DIR = BASE_DIR.parent
-VIEWER_DIR = ROOT_DIR / "viewer"
+# Overridable so a main.py dropped into /etc/signage still finds the viewer shipped with the image
+VIEWER_DIR = Path(os.environ.get("VIEWER_DIR", ROOT_DIR / "viewer"))
 CACHE_DIR = Path(os.environ.get("CACHE_DIR", ROOT_DIR / "cache"))
 MEDIA_CACHE_DIR = CACHE_DIR / "media"
 CONFIG_FILE = CACHE_DIR / "config.json"
