@@ -38,20 +38,26 @@
   i18n.defaultLocale = "en_US.UTF-8";
 
   # Hardware acceleration
-  hardware.opengl = {
+  hardware.graphics = {
     enable = true;
-    driSupport = true;
-    driSupport32Bit = true;
+    enable32Bit = true;
   };
 
-  # System state version
+  # State version of the first install; keep it, it is not the NixOS release in use
   system.stateVersion = "24.05";
 
-  # Enable OpenSSH remote access
+  # Remote access: SSH with keys only. Add public keys to nixos/ssh/authorized_keys.
   services.openssh = {
     enable = true;
-    settings.PermitRootLogin = "yes";
-    settings.PermitEmptyPasswords = "yes";
+    settings = {
+      PermitRootLogin = "prohibit-password";
+      PasswordAuthentication = false;
+      KbdInteractiveAuthentication = false;
+    };
   };
-  users.users.root.initialHashedPassword = "";
+  users.users.root.openssh.authorizedKeys.keyFiles = [ ../../ssh/authorized_keys ];
+
+  # No root password: the console login is locked, access is only via SSH key
+  users.users.root.hashedPassword = "!";
+  users.mutableUsers = false;
 }

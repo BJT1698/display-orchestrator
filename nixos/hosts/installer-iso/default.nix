@@ -5,7 +5,7 @@
     ../../modules/installer-script.nix
   ];
 
-  isoImage.isoBaseName = "signage-nixos-installer";
+  image.baseName = "signage-nixos-installer";
   isoImage.volumeID = "SIGNAGE_INSTALLER";
   isoImage.makeEfiBootable = true;
   isoImage.makeUsbBootable = true;
