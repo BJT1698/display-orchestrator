@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Pencil, LayoutTemplate } from 'lucide-react';
+import { readWidget, widgetByType } from '../widgets';
+import { WidgetModal } from '../components/WidgetModal';
 import { api } from '../services/api';
 import { PageHeader, EmptyState, Modal, MediaTypeIcon, SnippetFrame, mediaTypeLabel, formatBytes, formatDuration } from '../components/ui';
 
@@ -11,7 +13,11 @@ const FILTERS = [
   { id: 'html_snippet', label: 'HTML' },
 ];
 
-function Thumbnail({ media }) {
+function Thumbnail({ media, widget }) {
+  if (widget) {
+    // A live miniature of the widget; it scales itself because it is sized in vmin
+    return <div className="absolute inset-0 pointer-events-none"><SnippetFrame html={media.content} /></div>;
+  }
   if (media.media_type === 'image') {
     return (
       <img
@@ -48,6 +54,7 @@ export function MediaView({
 }) {
   const [filterType, setFilterType] = useState('all');
   const [previewMedia, setPreviewMedia] = useState(null);
+  const [widgetMedia, setWidgetMedia] = useState(undefined); // undefined closed, null new, media to edit
 
   const filteredMedia = mediaList.filter((m) => filterType === 'all' || m.media_type === filterType);
 
@@ -74,6 +81,9 @@ export function MediaView({
             </button>
           ))}
         </div>
+        <button onClick={() => setWidgetMedia(null)} className="btn">
+          <LayoutTemplate className="w-4 h-4" /> Add widget
+        </button>
         <button onClick={onOpenUpload} className="btn btn-primary">
           <Plus className="w-4 h-4" /> Add media
         </button>
@@ -88,7 +98,10 @@ export function MediaView({
         </EmptyState>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-5 gap-y-7">
-          {filteredMedia.map((media) => (
+          {filteredMedia.map((media) => {
+            const widgetConfig = media.media_type === 'html_snippet' ? readWidget(media.content) : null;
+            const widget = widgetConfig ? widgetByType(widgetConfig.type) : null;
+            return (
             <figure key={media.id} className="group min-w-0">
               <button
                 type="button"
@@ -96,7 +109,7 @@ export function MediaView({
                 className="relative block w-full aspect-video rounded-sm overflow-hidden bg-black border border-line hover:border-line-strong transition-colors"
                 aria-label={`Preview ${media.original_name}`}
               >
-                <Thumbnail media={media} />
+                <Thumbnail media={media} widget={widget} />
               </button>
               <figcaption className="mt-2.5 flex items-start justify-between gap-2">
                 <div className="min-w-0">
@@ -104,8 +117,8 @@ export function MediaView({
                     {media.original_name}
                   </div>
                   <div className="mt-0.5 flex items-center gap-1.5 text-xs text-faint">
-                    <MediaTypeIcon type={media.media_type} className="w-3.5 h-3.5" />
-                    <span>{mediaTypeLabel(media.media_type)}</span>
+                    {widget ? <LayoutTemplate className="w-3.5 h-3.5" /> : <MediaTypeIcon type={media.media_type} className="w-3.5 h-3.5" />}
+                    <span>{widget ? widget.label : mediaTypeLabel(media.media_type)}</span>
                     <span className="text-line-strong" aria-hidden="true">/</span>
                     <span>{formatDuration(media.duration_seconds)}</span>
                     {media.size_bytes > 0 && (
@@ -116,6 +129,16 @@ export function MediaView({
                     )}
                   </div>
                 </div>
+                {widget && (
+                  <button
+                    onClick={() => setWidgetMedia(media)}
+                    className="btn-icon shrink-0"
+                    title="Edit"
+                    aria-label={`Edit ${media.original_name}`}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                )}
                 <button
                   onClick={() => handleDelete(media.id, media.original_name)}
                   className="btn-icon is-danger shrink-0 -mr-1.5"
@@ -126,7 +149,8 @@ export function MediaView({
                 </button>
               </figcaption>
             </figure>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -147,6 +171,13 @@ export function MediaView({
             )}
           </div>
         </Modal>
+      )}
+      {widgetMedia !== undefined && (
+        <WidgetModal
+          media={widgetMedia}
+          onClose={() => setWidgetMedia(undefined)}
+          onSaved={() => { setWidgetMedia(undefined); onRefresh && onRefresh(); }}
+        />
       )}
     </div>
   );

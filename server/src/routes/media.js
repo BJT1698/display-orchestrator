@@ -80,6 +80,9 @@ mediaRouter.put('/:id', (req, res) => {
   if (!updated) {
     return res.status(404).json({ success: false, error: 'Media not found' });
   }
+  // Screens cache their playlist: push the changed item to them now, not at their next reconnect
+  wsHub.syncAllDisplays();
+  wsHub.log('info', actor(req), null, `Updated media: ${updated.original_name}`);
   res.json({ success: true, data: updated });
 });
 

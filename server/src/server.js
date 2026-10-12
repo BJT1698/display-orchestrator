@@ -51,6 +51,12 @@ app.use('/api/playlists', playlistsRouter);
 app.use('/api/schedules', schedulesRouter);
 app.use('/api/system', systemRouter);
 
+// Widget previews run in sandboxed iframes (opaque origin) and load these fonts cross-origin
+app.use('/fonts', (req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  next();
+});
+
 // Serve frontend SPA
 app.use(express.static(config.publicDir));
 

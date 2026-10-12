@@ -71,7 +71,10 @@
 
       if (res.currentPlaylist && res.currentPlaylist.items && res.currentPlaylist.items.length > 0) {
         hideStandbyScreen();
-        if (!currentPlaylist || currentPlaylist.id !== res.currentPlaylist.id || currentPlaylist.updated_at !== res.currentPlaylist.updated_at) {
+        const incoming = res.currentPlaylist;
+        const changed = !currentPlaylist || currentPlaylist.id !== incoming.id ||
+          (incoming.revision ? currentPlaylist.revision !== incoming.revision : currentPlaylist.updated_at !== incoming.updated_at);
+        if (changed) {
           currentPlaylist = res.currentPlaylist;
           currentSlideIndex = 0;
           playCurrentSlide();
