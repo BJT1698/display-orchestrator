@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import { db } from '../db/database.js';
 import { config } from '../config.js';
 import { schedulerService } from '../services/schedulerService.js';
+import { readCookie, userForToken, SESSION_COOKIE } from '../auth/auth.js';
 
 // Codes are stored as "ABC-DEF"; accept what people type ("abcdef", "ABC DEF")
 function normalizePairingCode(code) {
@@ -38,6 +39,15 @@ class DisplayWebSocketHub {
       });
 
       if (clientType === 'dashboard') {
+        // The dashboard socket carries live state and remote control: it needs a signed-in user
+        const token = readCookie(req.headers.cookie, SESSION_COOKIE);
+        const user = userForToken(token);
+        if (!user) {
+          ws.close(4401, 'Sign in to continue');
+          return;
+        }
+        ws.user = { id: user.id, username: user.username, role: user.role };
+        ws.sessionToken = token;
         this.handleDashboardConnection(ws);
       } else {
         this.handleDisplayConnection(ws, url.searchParams);
@@ -312,6 +322,19 @@ class DisplayWebSocketHub {
     this.log(level || 'info', 'display', uuid, message, payload);
   }
 
+  // Sign a user out of open dashboards (account disabled, deleted or password reset, or logout)
+  closeDashboardsOfUser(userId) {
+    for (const ws of this.dashboardSockets) {
+      if (ws.user?.id === userId) ws.close(4401, 'Signed out');
+    }
+  }
+
+  closeDashboardsOfSession(token) {
+    for (const ws of this.dashboardSockets) {
+      if (token && ws.sessionToken === token) ws.close(4401, 'Signed out');
+    }
+  }
+
   // --- Remote browser control (dashboard <-> display relay) ---
 
   handleDashboardMessage(ws, msg) {
@@ -333,7 +356,7 @@ class DisplayWebSocketHub {
           this.sendRemoteStatus(ws, uuid, 'offline');
         } else if (first) {
           const display = db.getOne('SELECT name FROM displays WHERE uuid = ?', uuid);
-          this.log('command', 'dashboard', uuid, `Remote control started on '${display?.name || uuid}'`);
+          this.log('command', ws.user?.username || 'dashboard', uuid, `Remote control started on '${display?.name || uuid}'`);
         }
         break;
       }
@@ -356,7 +379,7 @@ class DisplayWebSocketHub {
           ws.send(JSON.stringify({ type: 'CAST_STATUS', uuid, castId: msg.castId, status: 'offline' }));
         } else {
           const display = db.getOne('SELECT name FROM displays WHERE uuid = ?', uuid);
-          this.log('command', 'dashboard', uuid, `Screen sharing started on '${display?.name || uuid}'`);
+          this.log('command', ws.user?.username || 'dashboard', uuid, `Screen sharing started on '${display?.name || uuid}'`);
         }
         break;
       }

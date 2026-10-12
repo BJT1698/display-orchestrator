@@ -4,6 +4,7 @@ import { db } from '../db/database.js';
 import { config } from '../config.js';
 import { wsHub } from '../ws/websocketServer.js';
 import { mediaService } from '../services/mediaService.js';
+import { requireAdmin } from '../auth/auth.js';
 
 export const systemRouter = express.Router();
 
@@ -69,7 +70,7 @@ systemRouter.get('/logs', (req, res) => {
 });
 
 // Clear Logs
-systemRouter.delete('/logs', (req, res) => {
+systemRouter.delete('/logs', requireAdmin, (req, res) => {
   db.run('DELETE FROM audit_logs');
   res.json({ success: true, message: 'Audit logs cleared' });
 });

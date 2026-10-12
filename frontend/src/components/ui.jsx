@@ -118,9 +118,17 @@ export function formatBytes(bytes) {
   return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
 }
 
+// SQLite's datetime('now') is UTC written without a zone ("2026-10-12 09:19:04"); read it as UTC
+export function parseServerDate(value) {
+  if (!value) return null;
+  const s = String(value);
+  return new Date(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/.test(s) ? `${s.replace(' ', 'T')}Z` : s);
+}
+
 export function formatTime(value) {
-  if (!value) return '';
-  return new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const date = parseServerDate(value);
+  if (!date) return '';
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
 // Renders an HTML snippet like a screen does: isolated document, scripts allowed, no access to this page

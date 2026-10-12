@@ -8,7 +8,8 @@ export function SystemView({
   logs,
   groups,
   playlists,
-  onRefresh
+  onRefresh,
+  isAdmin
 }) {
   const [logFilter, setLogFilter] = useState('all');
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
@@ -145,7 +146,7 @@ export function SystemView({
               <button aria-pressed={logFilter === 'warn'} onClick={() => setLogFilter('warn')}>Warnings</button>
               <button aria-pressed={logFilter === 'error'} onClick={() => setLogFilter('error')}>Errors</button>
             </div>
-            <button onClick={handleClearLogs} className="btn btn-sm">Clear log</button>
+            {isAdmin && <button onClick={handleClearLogs} className="btn btn-sm">Clear log</button>}
           </div>
         </div>
 
