@@ -1,7 +1,49 @@
 import React, { useState } from 'react';
 import { RefreshCw, Power, Globe, Trash2, Plus, MousePointerClick, MonitorUp } from 'lucide-react';
-import { api } from '../services/api';
-import { PageHeader, EmptyState, Tally, formatDuration, ORIENTATIONS } from '../components/ui';
+import { api, updatesApi } from '../services/api';
+import { PageHeader, EmptyState, Tally, formatDuration, ORIENTATIONS, compareVersions } from '../components/ui';
+
+// Version on the screen, update progress, and the update button for administrators
+function SoftwareCell({ display, latestRelease, isAdmin, isOnline }) {
+  const [busy, setBusy] = useState(false);
+  const metrics = display.metrics || {};
+  const version = metrics.version;
+  const update = metrics.update;
+  const latest = latestRelease?.tag;
+
+  const running = update?.state === 'running';
+  const failed = update?.state === 'failed' && update?.target === latest && compareVersions(version, latest) < 0;
+  const behind = latest && (!version || compareVersions(version, latest) < 0);
+
+  const start = async () => {
+    if (!confirm(`Update ${display.name} to ${latest}?\n\nThe screen downloads the new version and restarts its player; this can take several minutes.`)) return;
+    setBusy(true);
+    try {
+      await updatesApi.updateDisplay(display.id, latest);
+    } catch (err) {
+      alert('Could not start the update: ' + err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-1">
+      <div className="text-faint">{version ? `Version ${version}` : 'Version unknown'}</div>
+      {running && <div className="text-caution">Updating to {update.target}</div>}
+      {failed && <div className="text-alert" title={update.error}>Update to {update.target} failed</div>}
+      {isAdmin && isOnline && behind && !running && (
+        metrics.updatesSupported ? (
+          <button onClick={start} disabled={busy} className="btn btn-sm mt-1">
+            {failed ? 'Retry update' : `Update to ${latest}`}
+          </button>
+        ) : (
+          <div className="text-faint" title="Installed before remote updates existed: update it once over SSH or reinstall">Needs a manual update once</div>
+        )
+      )}
+    </div>
+  );
+}
 
 export function DisplaysView({
   displays,
@@ -13,7 +55,8 @@ export function DisplaysView({
   onPushUrl,
   onRemoteControl,
   onShareScreen,
-  onSetBlank
+  onSetBlank,
+  latestRelease
 }) {
   const [selectedGroup, setSelectedGroup] = useState('all');
   const [loadingAction, setLoadingAction] = useState(null);
@@ -162,6 +205,7 @@ export function DisplaysView({
                       ) : (
                         <span className="text-faint">No data</span>
                       )}
+                      <SoftwareCell display={display} latestRelease={latestRelease} isAdmin={isAdmin} isOnline={isOnline} />
                     </td>
                     <td>
                       <div className="flex items-center justify-end gap-0.5">

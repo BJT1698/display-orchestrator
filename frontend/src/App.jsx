@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { LayoutGrid, Tv, ListVideo, Image as ImageIcon, CalendarClock, ScrollText, Siren, KeyRound, RefreshCw, Users, LogOut } from 'lucide-react';
-import { api, auth } from './services/api';
+import { api, auth, updatesApi } from './services/api';
 import { DashboardView } from './views/DashboardView';
 import { DisplaysView } from './views/DisplaysView';
 import { PlaylistsView } from './views/PlaylistsView';
@@ -72,6 +72,11 @@ function Console({ user, onSignOut }) {
   const [logs, setLogs] = useState([]);
   const [wsConnected, setWsConnected] = useState(false);
   const [thumbnails, setThumbnails] = useState({}); // display uuid -> latest screen picture
+  const [latestRelease, setLatestRelease] = useState(null);
+
+  useEffect(() => {
+    updatesApi.latestRelease().then(setLatestRelease).catch(() => {});
+  }, []);
 
   // Modals state
   const [isPairingOpen, setIsPairingOpen] = useState(false);
@@ -371,6 +376,7 @@ function Console({ user, onSignOut }) {
               onRemoteControl={(d) => setRemoteDisplay(d)}
               onShareScreen={(d) => cast.start(d)}
               onSetBlank={setBlank}
+              latestRelease={latestRelease}
             />
           )}
 
