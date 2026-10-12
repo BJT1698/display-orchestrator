@@ -114,6 +114,7 @@ const shutdown = () => {
   console.log('Shutting down server gracefully...');
   // Displays keep their sockets open forever, so close them or server.close() never returns
   if (wsHub.heartbeatTimer) clearInterval(wsHub.heartbeatTimer);
+  if (wsHub.scheduleTimer) clearInterval(wsHub.scheduleTimer);
   if (wsHub.wss) {
     for (const client of wsHub.wss.clients) client.terminate();
     wsHub.wss.close();

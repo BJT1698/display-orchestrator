@@ -4,8 +4,9 @@ import { db } from '../db/database.js';
 import { config } from '../config.js';
 import { wsHub } from '../ws/websocketServer.js';
 import { mediaService } from '../services/mediaService.js';
-import { requireAdmin } from '../auth/auth.js';
+import { requireAdmin, actor } from '../auth/auth.js';
 import { releaseService } from '../services/releaseService.js';
+import { settingsService } from '../services/settingsService.js';
 
 export const systemRouter = express.Router();
 
@@ -137,4 +138,21 @@ systemRouter.delete('/groups/:id', (req, res) => {
 systemRouter.get('/release', async (req, res) => {
   const latest = await releaseService.latest({ force: req.query.refresh === '1' });
   res.json({ success: true, data: latest });
+});
+
+// Night and weekend mode: one playlist on every screen outside working hours
+systemRouter.get('/after-hours', (req, res) => {
+  res.json({ success: true, data: settingsService.getAfterHours() });
+});
+
+systemRouter.put('/after-hours', (req, res) => {
+  const [value, error] = settingsService.validateAfterHours(req.body || {});
+  if (error) return res.status(400).json({ success: false, error });
+  settingsService.setAfterHours(value);
+  const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const days = value.days.length ? value.days.map((d) => names[d - 1]).join(' ') : 'none';
+  wsHub.log('info', 'server', null,
+    `${actor(req)} ${value.enabled ? 'enabled' : 'disabled'} after-hours mode (working days ${days}, ${value.start}-${value.end})`);
+  wsHub.syncAllDisplays();
+  res.json({ success: true, data: value });
 });

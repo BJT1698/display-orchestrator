@@ -57,8 +57,14 @@ viewer, sync it: `rsync -a --delete client/viewer/ nixos/client/viewer/ && cp cl
 - **Orientation** is owned by the server (`landscape`, `portrait`, `landscape-flipped`,
   `portrait-flipped`). The agent applies it as a compositor transform with `wlr-randr` (Cage
   supports wlr-output-management) and re-checks every 5 s; the handshake must not overwrite it.
+- Playlist choice (`schedulerService.resolvePlaylistChoice`): **night and weekend mode** (setting
+  `after_hours` in the `settings` table, `GET/PUT /api/system/after-hours`: outside the working days
+  and hours every screen plays one playlist) > schedules > assigned playlist > group default >
+  first playlist. Overrides on the agent (pushed page, cast, blank, emergency) still go on top.
 - Schedules are evaluated in the server's local time zone; overnight ranges (19:00-08:00) work,
-  but days are checked against the current day.
+  but days are checked against the current day. The WS hub re-checks every display every 30 s
+  (`startScheduleTick`) and syncs only those whose answer changed; dashboards get
+  `DISPLAY_NOW_PLAYING` (`now_playing_name`, `now_playing_reason`).
 
 ## NixOS image
 

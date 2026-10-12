@@ -1,5 +1,5 @@
 import React from 'react';
-import { KeyRound, Plus, Power, MousePointerClick, MonitorUp, Globe } from 'lucide-react';
+import { KeyRound, Plus, Power, MousePointerClick, MonitorUp, Globe, Moon, CalendarClock } from 'lucide-react';
 import { EmptyState, Tally, formatDuration, formatTime, isPortrait } from '../components/ui';
 
 function thumbnailAge(timestamp) {
@@ -15,7 +15,9 @@ function ScreenTile({ display, thumbnail, actions }) {
   const shot = isOnline ? thumbnail : null;
   // The picture's own shape is the truth; fall back to the configured orientation
   const portrait = shot?.width && shot?.height ? shot.height > shot.width : isPortrait(display.orientation);
-  const playlist = display.current_playlist_name;
+  // What the server resolves now (night mode, schedule, assignment), not just the assigned playlist
+  const playlist = display.now_playing_name || display.current_playlist_name;
+  const reason = display.now_playing_reason;
 
   return (
     <div className="min-w-0">
@@ -58,8 +60,10 @@ function ScreenTile({ display, thumbnail, actions }) {
       <div className="mt-2.5 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-sm font-medium text-ink truncate">{display.name}</div>
-          <div className="text-xs text-faint truncate">
-            {isOnline && playlist ? `${playlist}, ` : ''}{display.group_name || 'No group'}
+          <div className="text-xs text-faint truncate flex items-center gap-1">
+            {playlist && reason === 'after-hours' && <Moon className="w-3 h-3 shrink-0" aria-label="Night and weekend mode" />}
+            {playlist && reason === 'schedule' && <CalendarClock className="w-3 h-3 shrink-0" aria-label="By schedule" />}
+            <span className="truncate">{playlist ? `${playlist}, ` : ''}{display.group_name || 'No group'}</span>
           </div>
         </div>
         <div className="text-xs text-faint shrink-0 pt-0.5 text-right">

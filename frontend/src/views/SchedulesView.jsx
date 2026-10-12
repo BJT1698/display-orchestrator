@@ -1,7 +1,158 @@
-import React, { useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
-import { api } from '../services/api';
-import { PageHeader, EmptyState, Modal } from '../components/ui';
+import React, { useEffect, useState } from 'react';
+import { Plus, Trash2, Moon } from 'lucide-react';
+import { api, afterHoursApi } from '../services/api';
+import { PageHeader, EmptyState, Modal, ErrorNote, Tally } from '../components/ui';
+
+const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+// "Mon–Fri", "Mon, Wed, Fri", "every day"
+function describeDays(days) {
+  if (days.length === 7) return 'every day';
+  if (days.length === 0) return 'no day';
+  const sorted = [...days].sort();
+  const contiguous = sorted.every((d, i) => i === 0 || d === sorted[i - 1] + 1);
+  if (contiguous && sorted.length > 2) return `${DAY_NAMES[sorted[0] - 1]}–${DAY_NAMES[sorted[sorted.length - 1] - 1]}`;
+  return sorted.map((d) => DAY_NAMES[d - 1]).join(', ');
+}
+
+// Same rule as the server: working days, from start (included) to end (excluded)
+function isAfterHoursNow(cfg, now = new Date()) {
+  const day = now.getDay() === 0 ? 7 : now.getDay();
+  const hhmm = now.toTimeString().substring(0, 5);
+  return !cfg.days.includes(day) || hhmm < cfg.start || hhmm >= cfg.end;
+}
+
+function DayPicker({ value, onChange, disabled }) {
+  const toggle = (day) => onChange(value.includes(day) ? value.filter((d) => d !== day) : [...value, day].sort());
+  return (
+    <div className="grid grid-cols-7 gap-1" role="group" aria-label="Days">
+      {DAY_NAMES.map((name, idx) => {
+        const dayNum = idx + 1;
+        const isSelected = value.includes(dayNum);
+        return (
+          <button
+            key={dayNum}
+            type="button"
+            disabled={disabled}
+            aria-pressed={isSelected}
+            onClick={() => toggle(dayNum)}
+            className={`h-9 rounded text-sm border transition-colors disabled:opacity-50 ${
+              isSelected ? 'bg-ink border-ink text-ground font-semibold' : 'bg-ground border-line text-muted enabled:hover:text-ink enabled:hover:border-line-strong'
+            }`}
+          >
+            {name}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// Night and weekend mode: outside working hours every screen plays one playlist, above all rules
+function AfterHoursPanel({ playlists }) {
+  const [saved, setSaved] = useState(null);
+  const [draft, setDraft] = useState(null);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [, setClock] = useState(0);
+
+  useEffect(() => {
+    afterHoursApi.get().then((cfg) => { setSaved(cfg); setDraft(cfg); }).catch((err) => setError(err.message));
+    const timer = setInterval(() => setClock((n) => n + 1), 30000); // keeps "active now" honest
+    return () => clearInterval(timer);
+  }, []);
+
+  if (!draft) {
+    return error ? <div className="mb-8"><ErrorNote>{error}</ErrorNote></div> : null;
+  }
+
+  const set = (patch) => setDraft((d) => ({ ...d, ...patch }));
+  const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
+  const playlistName = playlists.find((p) => p.id === Number(saved.playlistId))?.name;
+  const activeNow = saved.enabled && playlistName && isAfterHoursNow(saved);
+
+  const save = async (next = draft) => {
+    setBusy(true);
+    setError('');
+    try {
+      const cfg = await afterHoursApi.save({ ...next, playlistId: next.playlistId ? Number(next.playlistId) : null });
+      setSaved(cfg);
+      setDraft(cfg);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Switching on with everything filled in saves at once; otherwise the form asks for the rest
+  const setEnabled = (enabled) => {
+    const next = { ...draft, enabled };
+    setDraft(next);
+    if (!enabled || next.playlistId) save(next);
+  };
+
+  return (
+    <section className="panel mb-8" aria-labelledby="after-hours-heading">
+      <div className="flex flex-wrap items-start justify-between gap-4 px-5 pt-4 pb-4 border-b border-line">
+        <div className="flex items-start gap-3 min-w-0">
+          <Moon className="w-4 h-4 mt-1 text-muted shrink-0" />
+          <div className="min-w-0">
+            <h2 id="after-hours-heading" className="text-base font-semibold text-ink">Night and weekend mode</h2>
+            <p className="mt-0.5 text-sm text-muted">
+              {saved.enabled && playlistName
+                ? <>Outside {describeDays(saved.days)} {saved.start}–{saved.end}, every screen plays <span className="text-ink">{playlistName}</span>. It wins over the rules below; a pushed page, a shared screen or an emergency message still go on top.</>
+                : 'Show one playlist on every screen outside working hours, for example the night clock.'}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-4 shrink-0">
+          {saved.enabled && playlistName && (
+            <span className="flex items-center gap-2 text-sm text-muted">
+              <Tally status={activeNow ? 'online' : 'offline'} />
+              {activeNow ? 'Active now' : 'Waiting for closing time'}
+            </span>
+          )}
+          <div className="segmented" role="group" aria-label="Night and weekend mode">
+            <button type="button" aria-pressed={!draft.enabled} disabled={busy} onClick={() => setEnabled(false)}>Off</button>
+            <button type="button" aria-pressed={draft.enabled} disabled={busy} onClick={() => setEnabled(true)}>On</button>
+          </div>
+        </div>
+      </div>
+
+      <form
+        className="px-5 py-4 grid gap-5 lg:grid-cols-[minmax(12rem,16rem)_auto_minmax(14rem,20rem)] lg:items-end"
+        onSubmit={(e) => { e.preventDefault(); save(); }}
+      >
+        <div>
+          <label className="field-label" htmlFor="ah-playlist">Playlist after hours</label>
+          <select id="ah-playlist" className="control" value={draft.playlistId || ''} onChange={(e) => set({ playlistId: e.target.value ? Number(e.target.value) : null })}>
+            <option value="">Choose a playlist</option>
+            {playlists.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </div>
+        <div>
+          <span className="field-label">Working days</span>
+          <DayPicker value={draft.days} onChange={(days) => set({ days })} />
+        </div>
+        <div className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
+          <div>
+            <label className="field-label" htmlFor="ah-start">Opens</label>
+            <input id="ah-start" type="time" className="control" value={draft.start} onChange={(e) => set({ start: e.target.value })} required />
+          </div>
+          <div>
+            <label className="field-label" htmlFor="ah-end">Closes</label>
+            <input id="ah-end" type="time" className="control" value={draft.end} onChange={(e) => set({ end: e.target.value })} required />
+          </div>
+          <button type="submit" className="btn btn-primary" disabled={!dirty || busy || (draft.enabled && !draft.playlistId)}>
+            {busy ? 'Saving' : 'Save'}
+          </button>
+        </div>
+        {error && <div className="lg:col-span-3"><ErrorNote>{error}</ErrorNote></div>}
+      </form>
+    </section>
+  );
+}
 
 export function SchedulesView({
   schedules,
@@ -19,15 +170,7 @@ export function SchedulesView({
   const [priority, setPriority] = useState(1);
   const [daysOfWeek, setDaysOfWeek] = useState([1, 2, 3, 4, 5]); // Mon-Fri default
 
-  const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-  const toggleDay = (dayNum) => {
-    if (daysOfWeek.includes(dayNum)) {
-      setDaysOfWeek(daysOfWeek.filter((d) => d !== dayNum));
-    } else {
-      setDaysOfWeek([...daysOfWeek, dayNum].sort());
-    }
-  };
+  const dayNames = DAY_NAMES;
 
   const handleCreateSchedule = async (e) => {
     e.preventDefault();
@@ -72,6 +215,8 @@ export function SchedulesView({
           <Plus className="w-4 h-4" /> New rule
         </button>
       </PageHeader>
+
+      <AfterHoursPanel playlists={playlists} />
 
       {schedules.length === 0 ? (
         <EmptyState
@@ -196,25 +341,7 @@ export function SchedulesView({
 
             <div>
               <span className="field-label">Days</span>
-              <div className="grid grid-cols-7 gap-1" role="group" aria-label="Days">
-                {dayNames.map((name, idx) => {
-                  const dayNum = idx + 1;
-                  const isSelected = daysOfWeek.includes(dayNum);
-                  return (
-                    <button
-                      key={dayNum}
-                      type="button"
-                      aria-pressed={isSelected}
-                      onClick={() => toggleDay(dayNum)}
-                      className={`h-9 rounded text-sm border transition-colors ${
-                        isSelected ? 'bg-ink border-ink text-ground font-semibold' : 'bg-ground border-line text-muted hover:text-ink hover:border-line-strong'
-                      }`}
-                    >
-                      {name}
-                    </button>
-                  );
-                })}
-              </div>
+              <DayPicker value={daysOfWeek} onChange={setDaysOfWeek} />
             </div>
           </form>
         </Modal>

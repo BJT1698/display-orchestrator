@@ -1,20 +1,32 @@
 import { db } from '../db/database.js';
+import { settingsService } from './settingsService.js';
+
+// Working hours: listed days, from start (included) to end (excluded). Everything else is after hours.
+function isOutsideWorkingHours(cfg, day, hhmm) {
+  if (!cfg.days.includes(day)) return true;
+  return !(hhmm >= cfg.start && hhmm < cfg.end);
+}
 
 export const schedulerService = {
   /**
    * Resolves the active playlist object and its full list of items for a given display
    */
-  resolveDisplayPlaylist(displayUuid) {
-    const display = db.getOne('SELECT * FROM displays WHERE uuid = ?', displayUuid);
-    if (!display) return null;
-
-    let targetPlaylistId = null;
-
-    // 1. Check time-based / day-of-week active schedules
-    const now = new Date();
+  /**
+   * Which playlist a display should play right now, and why:
+   * after-hours mode > time schedules > direct assignment > group default > first playlist
+   */
+  resolvePlaylistChoice(display, now = new Date()) {
     const currentDay = now.getDay() === 0 ? 7 : now.getDay(); // 1 = Monday, 7 = Sunday
     const currentHourMin = now.toTimeString().substring(0, 5); // "HH:MM"
+    const exists = (id) => id && db.getOne('SELECT id FROM playlists WHERE id = ?', id);
 
+    // 0. Night and weekend mode covers every screen outside working hours
+    const afterHours = settingsService.getAfterHours();
+    if (afterHours.enabled && exists(afterHours.playlistId) && isOutsideWorkingHours(afterHours, currentDay, currentHourMin)) {
+      return { playlistId: afterHours.playlistId, reason: 'after-hours' };
+    }
+
+    // 1. Time-based / day-of-week schedules
     const schedules = db.all(`
       SELECT s.* FROM schedules s
       WHERE s.is_active = 1
@@ -29,54 +41,51 @@ export const schedulerService = {
     for (const schedule of schedules) {
       let days = [1, 2, 3, 4, 5, 6, 7];
       try {
-        if (schedule.days_of_week) {
-          days = JSON.parse(schedule.days_of_week);
-        }
+        if (schedule.days_of_week) days = JSON.parse(schedule.days_of_week);
       } catch (e) {
         // ignore malformed json
       }
-
-      if (days.includes(currentDay)) {
-        if (schedule.start_time <= schedule.end_time) {
-          // Normal range (e.g. 08:00 to 18:00)
-          if (currentHourMin >= schedule.start_time && currentHourMin <= schedule.end_time) {
-            targetPlaylistId = schedule.playlist_id;
-            break;
-          }
-        } else {
-          // Overnight range (e.g. 22:00 to 06:00)
-          if (currentHourMin >= schedule.start_time || currentHourMin <= schedule.end_time) {
-            targetPlaylistId = schedule.playlist_id;
-            break;
-          }
-        }
+      if (!days.includes(currentDay)) continue;
+      const inRange = schedule.start_time <= schedule.end_time
+        ? currentHourMin >= schedule.start_time && currentHourMin <= schedule.end_time // e.g. 08:00 to 18:00
+        : currentHourMin >= schedule.start_time || currentHourMin <= schedule.end_time; // overnight, e.g. 22:00 to 06:00
+      if (inRange && exists(schedule.playlist_id)) {
+        return { playlistId: schedule.playlist_id, reason: 'schedule' };
       }
     }
 
-    // 2. Fallback to direct display assignment
-    if (!targetPlaylistId && display.current_playlist_id) {
-      targetPlaylistId = display.current_playlist_id;
+    // 2. Direct display assignment
+    if (exists(display.current_playlist_id)) {
+      return { playlistId: display.current_playlist_id, reason: 'assigned' };
     }
 
-    // 3. Fallback to group default playlist
-    if (!targetPlaylistId && display.group_id) {
+    // 3. Group default playlist
+    if (display.group_id) {
       const group = db.getOne('SELECT default_playlist_id FROM display_groups WHERE id = ?', display.group_id);
-      if (group && group.default_playlist_id) {
-        targetPlaylistId = group.default_playlist_id;
+      if (group && exists(group.default_playlist_id)) {
+        return { playlistId: group.default_playlist_id, reason: 'group' };
       }
     }
 
-    // 4. Fallback to first available playlist in database
-    if (!targetPlaylistId) {
-      const first = db.getOne('SELECT id FROM playlists ORDER BY id ASC LIMIT 1');
-      if (first) {
-        targetPlaylistId = first.id;
-      }
-    }
+    // 4. First available playlist
+    const first = db.getOne('SELECT id FROM playlists ORDER BY id ASC LIMIT 1');
+    return first ? { playlistId: first.id, reason: 'fallback' } : { playlistId: null, reason: 'none' };
+  },
 
-    if (!targetPlaylistId) return null;
+  resolveDisplayPlaylist(displayUuid) {
+    const display = db.getOne('SELECT * FROM displays WHERE uuid = ?', displayUuid);
+    if (!display) return null;
+    const { playlistId } = this.resolvePlaylistChoice(display);
+    return playlistId ? this.getPlaylistWithItems(playlistId) : null;
+  },
 
-    return this.getPlaylistWithItems(targetPlaylistId);
+  // Adds what each display is playing now, for the dashboard
+  withNowPlaying(displays) {
+    return displays.map((d) => {
+      const { playlistId, reason } = this.resolvePlaylistChoice(d);
+      const playlist = playlistId ? db.getOne('SELECT name FROM playlists WHERE id = ?', playlistId) : null;
+      return { ...d, now_playing_id: playlistId, now_playing_name: playlist?.name || null, now_playing_reason: reason };
+    });
   },
 
   /**
