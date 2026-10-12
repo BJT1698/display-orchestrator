@@ -16,6 +16,7 @@ import threading
 import subprocess
 import shutil
 import re
+import hashlib
 from pathlib import Path
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 
@@ -508,6 +509,11 @@ def sync_playlist_media(playlist):
 
     local_playlist = dict(playlist)
     local_playlist["items"] = processed_items
+    # Fingerprint of the content: the viewer restarts playback when any item changes, not only
+    # when the playlist row itself is touched (an edited widget or replaced picture)
+    local_playlist["revision"] = hashlib.sha1(
+        json.dumps(processed_items, sort_keys=True, default=str).encode("utf-8")
+    ).hexdigest()
     current_playlist = local_playlist
 
     # Save to offline cache

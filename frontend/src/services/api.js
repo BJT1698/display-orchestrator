@@ -45,6 +45,12 @@ export const usersApi = {
   remove: (id) => jsonCall(`${API_BASE}/users/${id}`, 'DELETE'),
 };
 
+export const mediaApi = {
+  update: (id, payload) => jsonCall(`${API_BASE}/media/${id}`, 'PUT', payload),
+  createHtml: (name, content, durationSeconds) =>
+    jsonCall(`${API_BASE}/media/html`, 'POST', { name, content, durationSeconds }),
+};
+
 export const updatesApi = {
   latestRelease: () => jsonCall(`${API_BASE}/system/release`),
   updateDisplay: (id, version) => jsonCall(`${API_BASE}/displays/${id}/update`, 'POST', { version }),

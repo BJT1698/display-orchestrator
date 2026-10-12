@@ -77,6 +77,16 @@ viewer, sync it: `rsync -a --delete client/viewer/ nixos/client/viewer/ && cp cl
   github:BJT1698/display-orchestrator/<tag>?dir=nixos#target-system` and writes `status.json`
   next to it (root-owned dir). The server only allows the latest GitHub release.
 
+## Widgets
+
+`frontend/src/widgets/`: announcement, weather (Open-Meteo, fetched by the screen every 15 min,
+last answer kept in localStorage), clock, countdown, QR (SVG drawn at authoring time). Each widget
+renders a self-contained HTML snippet saved as an ordinary `html_snippet` media; its settings ride
+in a leading `<!-- signage-widget:<base64 JSON> -->` comment so the dashboard can reopen it.
+Announcement pictures are embedded once (data URL in the page, a placeholder in the settings).
+Screen text is Italian; sizes in vmin. Editing a media re-syncs all displays, and the agent's
+playlist `revision` hash makes the viewer restart playback when any item changed.
+
 ## Design (dashboard and screens)
 
 Broadcast control room: graphite ground, **color only for state** (tally: on air `#3FB37F`,
