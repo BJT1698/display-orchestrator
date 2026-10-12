@@ -587,21 +587,25 @@ async def ws_loop():
             await asyncio.sleep(min(backoff, 30))
             backoff = int(backoff * 1.5)
 
+def heartbeat_message():
+    uptime_sec = int(time.time() - start_time)
+    return {
+        "type": "HEARTBEAT",
+        "uuid": config["uuid"],
+        "uptimeSeconds": uptime_sec,
+        "metrics": {
+            "uptimeSeconds": uptime_sec,
+            "platform": sys.platform,
+            # Lets the dashboard show whether the screen is blanked (its on/off control)
+            "blank": bool(overrides.get("blank")),
+        },
+    }
+
 async def send_heartbeats(ws):
     while True:
         try:
             await asyncio.sleep(15)
-            uptime_sec = int(time.time() - start_time)
-            hb = {
-                "type": "HEARTBEAT",
-                "uuid": config["uuid"],
-                "uptimeSeconds": uptime_sec,
-                "metrics": {
-                    "uptimeSeconds": uptime_sec,
-                    "platform": sys.platform
-                }
-            }
-            await ws.send(json.dumps(hb))
+            await ws.send(json.dumps(heartbeat_message()))
         except asyncio.CancelledError:
             break
         except Exception:
@@ -650,6 +654,8 @@ async def handle_ws_message(ws, msg):
         state = bool(msg.get("state", False))
         print(f"🖥️ Blank Screen: {state}")
         overrides["blank"] = state
+        # Report the new state right away instead of at the next heartbeat
+        await ws.send(json.dumps(heartbeat_message()))
 
     elif mtype == "CAST_OFFER":
         print("📺 Screen sharing offer received")

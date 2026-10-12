@@ -637,7 +637,7 @@ class DisplayWebSocketHub {
 
   log(level, source, displayUuid, message, payload = null) {
     const payloadStr = payload ? (typeof payload === 'object' ? JSON.stringify(payload) : String(payload)) : null;
-    db.run(
+    const inserted = db.run(
       'INSERT INTO audit_logs (level, source, display_uuid, message, payload) VALUES (?, ?, ?, ?, ?)',
       level,
       source,
@@ -648,12 +648,14 @@ class DisplayWebSocketHub {
 
     this.broadcastToDashboards({
       type: 'LOG_ENTRY',
+      // Same shape as the rows of GET /api/system/logs, so the dashboard renders both alike
       data: {
+        id: Number(inserted.lastInsertRowid),
         level,
         source,
-        displayUuid,
+        display_uuid: displayUuid || null,
         message,
-        createdAt: new Date().toISOString()
+        created_at: new Date().toISOString()
       }
     });
   }
