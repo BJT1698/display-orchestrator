@@ -1,6 +1,5 @@
 import express from 'express';
 import http from 'node:http';
-import cors from 'cors';
 import path from 'node:path';
 import { config } from './config.js';
 import { getDb } from './db/database.js';
@@ -10,18 +9,19 @@ import { mediaRouter } from './routes/media.js';
 import { playlistsRouter } from './routes/playlists.js';
 import { schedulesRouter } from './routes/schedules.js';
 import { systemRouter } from './routes/system.js';
+import { authRouter } from './routes/auth.js';
+import { usersRouter } from './routes/users.js';
+import { attachUser, requireUser, requireAdmin, ensureSetupCode, purgeExpiredSessions } from './auth/auth.js';
 
 // Initialize Database on startup
 getDb();
+ensureSetupCode();
+purgeExpiredSessions();
+setInterval(purgeExpiredSessions, 60 * 60 * 1000).unref();
 
 const app = express();
 
-// Middlewares
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+// Middlewares (no CORS: the dashboard is same-origin, and the API now needs a session cookie)
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
@@ -33,17 +33,23 @@ app.use('/media', express.static(config.mediaDir, {
   }
 }));
 
+// Health stays public: displays and the first-boot wizard probe it
+app.get(['/health', '/api/health'], (req, res) => {
+  res.json({ status: 'ok', uptime: process.uptime(), time: new Date().toISOString() });
+});
+
+// Everything else under /api needs a signed-in user; user management needs an administrator
+app.use('/api', attachUser);
+app.use('/api/auth', authRouter);
+app.use('/api/users', requireAdmin, usersRouter);
+app.use('/api', requireUser);
+
 // API Routes
 app.use('/api/displays', displaysRouter);
 app.use('/api/media', mediaRouter);
 app.use('/api/playlists', playlistsRouter);
 app.use('/api/schedules', schedulesRouter);
 app.use('/api/system', systemRouter);
-
-// Health check endpoints
-app.get(['/health', '/api/health'], (req, res) => {
-  res.json({ status: 'ok', uptime: process.uptime(), time: new Date().toISOString() });
-});
 
 // Serve frontend SPA
 app.use(express.static(config.publicDir));

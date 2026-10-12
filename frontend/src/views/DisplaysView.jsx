@@ -9,6 +9,7 @@ export function DisplaysView({
   playlists,
   onRefresh,
   onOpenPairing,
+  isAdmin,
   onPushUrl,
   onRemoteControl,
   onShareScreen
@@ -75,15 +76,17 @@ export function DisplaysView({
             <option key={g.id} value={g.id}>{g.name}</option>
           ))}
         </select>
-        <button onClick={onOpenPairing} className="btn btn-primary">
-          <Plus className="w-4 h-4" /> Pair a display
-        </button>
+        {isAdmin && (
+          <button onClick={onOpenPairing} className="btn btn-primary">
+            <Plus className="w-4 h-4" /> Pair a display
+          </button>
+        )}
       </PageHeader>
 
       {filteredDisplays.length === 0 ? (
         <EmptyState
           title={displays.length === 0 ? 'No screens yet' : 'No screens in this group'}
-          action={displays.length === 0 && (
+          action={isAdmin && displays.length === 0 && (
             <button onClick={onOpenPairing} className="btn btn-primary">Pair a display</button>
           )}
         >
@@ -215,15 +218,19 @@ export function DisplaysView({
                         >
                           <Sun className="w-4 h-4" />
                         </button>
-                        <span className="w-px h-5 bg-line mx-1.5" aria-hidden="true" />
-                        <button
-                          onClick={() => handleDeleteDisplay(display)}
-                          className="btn-icon is-danger"
-                          title="Remove display"
-                          aria-label={`Remove ${display.name}`}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {isAdmin && (
+                          <>
+                            <span className="w-px h-5 bg-line mx-1.5" aria-hidden="true" />
+                            <button
+                              onClick={() => handleDeleteDisplay(display)}
+                              className="btn-icon is-danger"
+                              title="Remove display"
+                              aria-label={`Remove ${display.name}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>

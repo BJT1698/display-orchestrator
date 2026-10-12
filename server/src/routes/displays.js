@@ -1,6 +1,7 @@
 import express from 'express';
 import { db } from '../db/database.js';
 import { wsHub } from '../ws/websocketServer.js';
+import { requireAdmin, actor } from '../auth/auth.js';
 
 export const displaysRouter = express.Router();
 
@@ -44,7 +45,7 @@ displaysRouter.get('/pairing/pending', (req, res) => {
 });
 
 // Approve pairing request
-displaysRouter.post('/pairing/approve', (req, res) => {
+displaysRouter.post('/pairing/approve', requireAdmin, (req, res) => {
   const { pairingCode, name, groupId } = req.body;
   if (!pairingCode) {
     return res.status(400).json({ success: false, error: 'Pairing code is required' });
@@ -59,7 +60,7 @@ displaysRouter.post('/pairing/approve', (req, res) => {
 });
 
 // Reject / dismiss pairing request
-displaysRouter.post('/pairing/reject', (req, res) => {
+displaysRouter.post('/pairing/reject', requireAdmin, (req, res) => {
   const { pairingCode } = req.body;
   if (!pairingCode) return res.status(400).json({ success: false, error: 'Pairing code required' });
 
@@ -131,7 +132,7 @@ displaysRouter.put('/:id', (req, res) => {
 });
 
 // Delete display
-displaysRouter.delete('/:id', (req, res) => {
+displaysRouter.delete('/:id', requireAdmin, (req, res) => {
   const display = db.getOne('SELECT * FROM displays WHERE id = ? OR uuid = ?', req.params.id, req.params.id);
   if (!display) {
     return res.status(404).json({ success: false, error: 'Display not found' });
@@ -194,7 +195,7 @@ displaysRouter.post('/:id/command', (req, res) => {
       return res.status(400).json({ success: false, error: `Unknown command action: ${action}` });
   }
 
-  wsHub.log('command', 'dashboard', display.uuid, `Sent command '${action}' to display '${display.name}'`, payload);
+  wsHub.log('command', actor(req), display.uuid, `Sent command '${action}' to display '${display.name}'`, payload);
 
   res.json({
     success: true,
@@ -212,7 +213,7 @@ displaysRouter.post('/:id/push', (req, res) => {
   if (!display) return res.status(404).json({ success: false, error: 'Display not found' });
 
   const sent = wsHub.pushUrl(display.uuid, url, durationSeconds || 30);
-  wsHub.log('command', 'dashboard', display.uuid, `Pushed URL '${url}' (${durationSeconds || 30}s) to '${display.name}'`);
+  wsHub.log('command', actor(req), display.uuid, `Pushed URL '${url}' (${durationSeconds || 30}s) to '${display.name}'`);
 
   res.json({
     success: true,
@@ -227,7 +228,7 @@ displaysRouter.post('/broadcast/emergency', (req, res) => {
   if (!message) return res.status(400).json({ success: false, error: 'Alert message is required' });
 
   const sentCount = wsHub.broadcastEmergencyAlert(message, title, durationSeconds || 60);
-  wsHub.log('warn', 'dashboard', null, `Broadcasted emergency alert: "${message}" to ${sentCount} displays`);
+  wsHub.log('warn', actor(req), null, `Broadcasted emergency alert: "${message}" to ${sentCount} displays`);
 
   res.json({ success: true, message: `Emergency alert broadcast to ${sentCount} connected display(s)` });
 });

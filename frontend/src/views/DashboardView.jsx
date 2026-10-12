@@ -65,6 +65,7 @@ export function DashboardView({
   playlists,
   logs,
   onOpenPairing,
+  isAdmin,
   onSelectDisplay,
   onNavigate
 }) {
@@ -121,13 +122,15 @@ export function DashboardView({
         {displays.length === 0 ? (
           <EmptyState
             title="No screens yet"
-            action={
+            action={isAdmin && (
               <button onClick={onOpenPairing} className="btn btn-primary">
                 <Plus className="w-4 h-4" /> Pair a display
               </button>
-            }
+            )}
           >
-            Turn on a signage player and point it to this server. It will show a pairing code to approve here.
+            {isAdmin
+              ? 'Turn on a signage player and point it to this server. It will show a pairing code to approve here.'
+              : 'An administrator pairs new screens. They will show up here once approved.'}
           </EmptyState>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-x-6 gap-y-8">

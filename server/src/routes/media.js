@@ -1,6 +1,7 @@
 import express from 'express';
 import { mediaService, uploadMiddleware } from '../services/mediaService.js';
 import { wsHub } from '../ws/websocketServer.js';
+import { actor } from '../auth/auth.js';
 
 export const mediaRouter = express.Router();
 
@@ -34,7 +35,7 @@ mediaRouter.post('/upload', uploadMiddleware.single('file'), (req, res) => {
   try {
     const duration = req.body.durationSeconds || 10;
     const item = mediaService.createUploadedMedia(req.file, duration);
-    wsHub.log('info', 'dashboard', null, `Uploaded media: ${item.original_name} (${item.media_type})`);
+    wsHub.log('info', actor(req), null, `Uploaded media: ${item.original_name} (${item.media_type})`);
     res.json({ success: true, data: item });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -50,7 +51,7 @@ mediaRouter.post('/url', (req, res) => {
 
   try {
     const item = mediaService.createUrlMedia({ name, url, durationSeconds });
-    wsHub.log('info', 'dashboard', null, `Created web URL media: ${name} -> ${url}`);
+    wsHub.log('info', actor(req), null, `Created web URL media: ${name} -> ${url}`);
     res.json({ success: true, data: item });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -66,7 +67,7 @@ mediaRouter.post('/html', (req, res) => {
 
   try {
     const item = mediaService.createHtmlMedia({ name, content, durationSeconds });
-    wsHub.log('info', 'dashboard', null, `Created custom HTML media: ${name}`);
+    wsHub.log('info', actor(req), null, `Created custom HTML media: ${name}`);
     res.json({ success: true, data: item });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
