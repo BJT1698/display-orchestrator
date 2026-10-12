@@ -20,6 +20,8 @@ class DisplayWebSocketHub {
     this.casters = new Map(); // display uuid -> dashboard ws currently sharing its screen to it
     this.thumbnails = new Map(); // display uuid -> latest screen thumbnail for the display wall
     this.heartbeatTimer = null;
+    this.scheduleTimer = null;
+    this.nowPlaying = new Map(); // uuid -> "playlistId:reason" last sent
   }
 
   init(server) {
@@ -74,6 +76,7 @@ class DisplayWebSocketHub {
 
     // Start background sweep for dead displays
     this.startHeartbeatSweep();
+    this.startScheduleTick();
     console.log('✓ WebSocket Hub initialized on /ws');
   }
 
@@ -96,12 +99,13 @@ class DisplayWebSocketHub {
       }
       return { ...d, metrics };
     });
+    const withNowPlaying = schedulerService.withNowPlaying(displays);
     const pairings = db.all("SELECT * FROM pairing_requests WHERE status = 'pending' ORDER BY created_at DESC");
     
     ws.send(JSON.stringify({
       type: 'INIT_STATE',
       data: {
-        displays,
+        displays: withNowPlaying,
         pendingPairings: pairings,
         serverTime: new Date().toISOString()
       }
@@ -482,7 +486,10 @@ class DisplayWebSocketHub {
 
   syncDisplayPlaylist(uuid) {
     const ws = this.displaySockets.get(uuid);
-    const playlist = schedulerService.resolveDisplayPlaylist(uuid);
+    const display = db.getOne('SELECT * FROM displays WHERE uuid = ?', uuid);
+    if (!display) return;
+    const [now] = schedulerService.withNowPlaying([display]);
+    const playlist = now.now_playing_id ? schedulerService.getPlaylistWithItems(now.now_playing_id) : null;
 
     const payload = {
       type: 'SYNC_PLAYLIST',
@@ -493,12 +500,52 @@ class DisplayWebSocketHub {
     if (ws && ws.readyState === WebSocket.OPEN) {
       ws.send(JSON.stringify(payload));
     }
+
+    // Dashboards show what each screen is playing and why
+    const key = `${now.now_playing_id}:${now.now_playing_reason}`;
+    if (this.nowPlaying.get(uuid) !== key) {
+      this.nowPlaying.set(uuid, key);
+      this.broadcastToDashboards({
+        type: 'DISPLAY_NOW_PLAYING',
+        data: {
+          uuid,
+          now_playing_id: now.now_playing_id,
+          now_playing_name: now.now_playing_name,
+          now_playing_reason: now.now_playing_reason
+        }
+      });
+    }
   }
 
   syncAllDisplays() {
-    for (const [uuid] of this.displaySockets) {
+    // Offline displays too, so the dashboard's "playing now" stays right
+    for (const { uuid } of db.all('SELECT uuid FROM displays')) {
       this.syncDisplayPlaylist(uuid);
     }
+  }
+
+  // Schedules and after-hours mode depend on the clock: re-check every display every 30 s and
+  // send a new playlist only to those whose answer changed
+  startScheduleTick() {
+    if (this.scheduleTimer) clearInterval(this.scheduleTimer);
+    this.scheduleTimer = setInterval(() => {
+      try {
+        for (const display of db.all('SELECT * FROM displays')) {
+          const { playlistId, reason } = schedulerService.resolvePlaylistChoice(display);
+          const key = `${playlistId}:${reason}`;
+          const previous = this.nowPlaying.get(display.uuid);
+          if (previous === key) continue;
+          this.syncDisplayPlaylist(display.uuid);
+          if (previous !== undefined && reason === 'after-hours') {
+            this.log('info', 'scheduler', display.uuid, `${display.name}: after hours, switching to the night playlist`);
+          } else if (previous?.endsWith(':after-hours')) {
+            this.log('info', 'scheduler', display.uuid, `${display.name}: working hours, back to the regular playlist`);
+          }
+        }
+      } catch (err) {
+        console.error('Schedule tick failed:', err.message);
+      }
+    }, 30000);
   }
 
   sendToDisplay(uuid, commandPayload) {

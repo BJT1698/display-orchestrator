@@ -218,6 +218,12 @@ function Console({ user, onSignOut }) {
           loadData();
           break;
 
+        case 'DISPLAY_NOW_PLAYING':
+          setDisplays((prev) =>
+            prev.map((d) => (d.uuid === msg.data.uuid ? { ...d, ...msg.data } : d))
+          );
+          break;
+
         case 'DISPLAY_SCREENSHOT':
           setThumbnails((prev) => ({ ...prev, [msg.data.uuid]: msg.data }));
           break;

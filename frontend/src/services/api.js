@@ -51,6 +51,11 @@ export const mediaApi = {
     jsonCall(`${API_BASE}/media/html`, 'POST', { name, content, durationSeconds }),
 };
 
+export const afterHoursApi = {
+  get: () => jsonCall(`${API_BASE}/system/after-hours`),
+  save: (payload) => jsonCall(`${API_BASE}/system/after-hours`, 'PUT', payload),
+};
+
 export const updatesApi = {
   latestRelease: () => jsonCall(`${API_BASE}/system/release`),
   updateDisplay: (id, version) => jsonCall(`${API_BASE}/displays/${id}/update`, 'POST', { version }),

@@ -3,6 +3,7 @@ import { db } from '../db/database.js';
 import { wsHub } from '../ws/websocketServer.js';
 import { requireAdmin, actor } from '../auth/auth.js';
 import { releaseService } from '../services/releaseService.js';
+import { schedulerService } from '../services/schedulerService.js';
 
 export const displaysRouter = express.Router();
 
@@ -36,7 +37,7 @@ displaysRouter.get('/', (req, res) => {
     };
   });
 
-  res.json({ success: true, data: formatted });
+  res.json({ success: true, data: schedulerService.withNowPlaying(formatted) });
 });
 
 // Get pending pairing requests
