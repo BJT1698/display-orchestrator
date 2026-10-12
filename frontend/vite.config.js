@@ -22,6 +22,10 @@ export default defineConfig({
   },
   build: {
     outDir: '../server/public',
-    emptyOutDir: true
+    emptyOutDir: true,
+    rollupOptions: {
+      // The dashboard, and the public page guests use to ask to share their screen
+      input: { main: 'index.html', cast: 'cast.html' }
+    }
   }
 });

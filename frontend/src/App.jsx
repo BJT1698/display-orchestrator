@@ -16,6 +16,7 @@ import { PlaylistPreviewModal } from './components/PlaylistPreviewModal';
 import { MediaUploadModal } from './components/MediaUploadModal';
 import { RemoteControlModal } from './components/RemoteControlModal';
 import { useScreenCast, CastBar } from './components/ScreenCast';
+import { GuestRequests } from './components/GuestRequests';
 import { SignInScreen, SetupScreen } from './components/AuthScreens';
 import { ChangePasswordModal } from './components/ChangePasswordModal';
 
@@ -64,6 +65,7 @@ function Console({ user, onSignOut }) {
   const [isPasswordOpen, setIsPasswordOpen] = useState(false);
   const [displays, setDisplays] = useState([]);
   const [pendingPairings, setPendingPairings] = useState([]);
+  const [guestRequests, setGuestRequests] = useState([]);
   const [playlists, setPlaylists] = useState([]);
   const [mediaList, setMediaList] = useState([]);
   const [schedules, setSchedules] = useState([]);
@@ -191,6 +193,11 @@ function Console({ user, onSignOut }) {
         case 'INIT_STATE':
           if (msg.data.displays) setDisplays(msg.data.displays);
           if (msg.data.pendingPairings) setPendingPairings(msg.data.pendingPairings);
+          setGuestRequests(msg.data.guestRequests || []);
+          break;
+
+        case 'GUEST_REQUESTS':
+          setGuestRequests(msg.data || []);
           break;
 
         case 'DISPLAY_STATUS_CHANGE':
@@ -337,6 +344,7 @@ function Console({ user, onSignOut }) {
 
       <main className="flex-1 min-w-0">
         <CastBar session={cast.session} onStop={cast.stop} onDismiss={cast.dismiss} />
+        <GuestRequests requests={guestRequests} displays={displays} sendWs={sendWs} />
         <div className="md:hidden flex gap-2 px-4 pt-4">
           {isAdmin && (
             <button onClick={() => setIsPairingOpen(true)} className="btn btn-sm flex-1">

@@ -17,7 +17,9 @@ class DisplayWebSocketHub {
     this.displaySockets = new Map(); // uuid -> ws
     this.dashboardSockets = new Set(); // Set of ws
     this.remoteViewers = new Map(); // display uuid -> Set of dashboard ws watching its browser
-    this.casters = new Map(); // display uuid -> dashboard ws currently sharing its screen to it
+    this.casters = new Map(); // display uuid -> dashboard or guest ws currently sharing its screen to it
+    this.guestRequests = new Map(); // id -> guest screen-sharing request (in memory, gone on restart)
+    this.guestRequestLog = new Map(); // ip -> timestamps of recent requests, for rate limiting
     this.thumbnails = new Map(); // display uuid -> latest screen thumbnail for the display wall
     this.heartbeatTimer = null;
     this.scheduleTimer = null;
@@ -52,11 +54,20 @@ class DisplayWebSocketHub {
         ws.user = { id: user.id, username: user.username, role: user.role };
         ws.sessionToken = token;
         this.handleDashboardConnection(ws);
+      } else if (clientType === 'guest') {
+        // Unauthenticated page that asks to share a screen; it can do nothing until approved
+        ws.clientIp = String(clientIp).split(',')[0].trim();
+        this.handleGuestConnection(ws);
       } else {
         this.handleDisplayConnection(ws, url.searchParams);
       }
 
       ws.on('message', (data) => {
+        // Guests are anonymous: an offer is a few KB, anything big is not one
+        if (ws.clientType === 'guest' && data.length > 64 * 1024) {
+          ws.close(1009, 'Message too large');
+          return;
+        }
         try {
           const message = JSON.parse(data.toString());
           this.handleMessage(ws, message);
@@ -107,6 +118,7 @@ class DisplayWebSocketHub {
       data: {
         displays: withNowPlaying,
         pendingPairings: pairings,
+        guestRequests: this.guestRequestList(),
         serverTime: new Date().toISOString()
       }
     }));
@@ -136,6 +148,10 @@ class DisplayWebSocketHub {
   handleMessage(ws, msg) {
     if (ws.clientType === 'dashboard') {
       this.handleDashboardMessage(ws, msg);
+      return;
+    }
+    if (ws.clientType === 'guest') {
+      this.handleGuestMessage(ws, msg);
       return;
     }
 
@@ -357,6 +373,10 @@ class DisplayWebSocketHub {
   // --- Remote browser control (dashboard <-> display relay) ---
 
   handleDashboardMessage(ws, msg) {
+    if (msg.type?.startsWith('GUEST_')) {
+      this.handleGuestDecision(ws, msg);
+      return;
+    }
     const uuid = msg.uuid;
     if (!uuid) return;
 
@@ -385,23 +405,9 @@ class DisplayWebSocketHub {
         break;
 
       // Screen sharing: the server only relays the WebRTC offer/answer, media flows peer to peer on the LAN
-      case 'CAST_OFFER': {
-        if (!msg.sdp || !msg.castId) break;
-        const previous = this.casters.get(uuid);
-        if (previous && previous !== ws && previous.readyState === WebSocket.OPEN) {
-          previous.send(JSON.stringify({ type: 'CAST_STATUS', uuid, castId: null, status: 'replaced' }));
-        }
-        this.casters.set(uuid, ws);
-        const sent = this.sendToDisplay(uuid, { type: 'CAST_OFFER', castId: msg.castId, sdp: msg.sdp });
-        if (!sent) {
-          this.casters.delete(uuid);
-          ws.send(JSON.stringify({ type: 'CAST_STATUS', uuid, castId: msg.castId, status: 'offline' }));
-        } else {
-          const display = db.getOne('SELECT name FROM displays WHERE uuid = ?', uuid);
-          this.log('command', ws.user?.username || 'dashboard', uuid, `Screen sharing started on '${display?.name || uuid}'`);
-        }
+      case 'CAST_OFFER':
+        this.startCast(ws, uuid, msg, ws.user?.username || 'dashboard');
         break;
-      }
 
       case 'CAST_STOP':
         if (this.casters.get(uuid) === ws) {
@@ -420,6 +426,158 @@ class DisplayWebSocketHub {
       default:
         break;
     }
+  }
+
+  startCast(ws, uuid, msg, who) {
+    if (!msg.sdp || !msg.castId) return false;
+    const previous = this.casters.get(uuid);
+    if (previous && previous !== ws && previous.readyState === WebSocket.OPEN) {
+      previous.send(JSON.stringify({ type: 'CAST_STATUS', uuid, castId: null, status: 'replaced' }));
+    }
+    this.casters.set(uuid, ws);
+    if (previous && previous !== ws && previous.clientType === 'guest') this.broadcastGuestRequests();
+    const sent = this.sendToDisplay(uuid, { type: 'CAST_OFFER', castId: msg.castId, sdp: msg.sdp });
+    if (!sent) {
+      this.casters.delete(uuid);
+      ws.send(JSON.stringify({ type: 'CAST_STATUS', uuid, castId: msg.castId, status: 'offline' }));
+      return false;
+    }
+    const display = db.getOne('SELECT name FROM displays WHERE uuid = ?', uuid);
+    this.log('command', who, uuid, `Screen sharing started on '${display?.name || uuid}'`);
+    return true;
+  }
+
+  // Ends whatever the given socket is sharing (dashboard or guest)
+  stopCastsOf(ws) {
+    for (const [uuid, caster] of [...this.casters]) {
+      if (caster === ws) {
+        this.casters.delete(uuid);
+        this.sendToDisplay(uuid, { type: 'CAST_STOP' });
+      }
+    }
+  }
+
+  // --- Guest screen sharing: a page anyone on the LAN can open, sharing only after approval ---
+
+  guestDisplays() {
+    return db.all("SELECT uuid, name, status FROM displays WHERE token IS NOT NULL ORDER BY name ASC");
+  }
+
+  publicGuestRequest(r) {
+    const display = r.uuid ? db.getOne('SELECT name FROM displays WHERE uuid = ?', r.uuid) : null;
+    return {
+      id: r.id, name: r.name, ip: r.ip, code: r.code, uuid: r.uuid, displayName: display?.name || null,
+      status: r.status, live: this.casters.get(r.uuid) === r.ws && r.status === 'approved',
+      createdAt: r.createdAt, expiresAt: r.expiresAt, approvedBy: r.approvedBy || null,
+    };
+  }
+
+  guestRequestList() {
+    return [...this.guestRequests.values()].map((r) => this.publicGuestRequest(r));
+  }
+
+  broadcastGuestRequests() {
+    this.broadcastToDashboards({ type: 'GUEST_REQUESTS', data: this.guestRequestList() });
+  }
+
+  sendGuest(ws, payload) {
+    if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(payload));
+  }
+
+  handleGuestConnection(ws) {
+    ws.guestRequestId = null;
+    this.sendGuest(ws, { type: 'GUEST_DISPLAYS', data: this.guestDisplays() });
+  }
+
+  handleGuestMessage(ws, msg) {
+    const request = ws.guestRequestId && this.guestRequests.get(ws.guestRequestId);
+
+    switch (msg.type) {
+      case 'GUEST_REQUEST': {
+        if (request) return; // one request per page
+        const now = Date.now();
+        const recent = (this.guestRequestLog.get(ws.clientIp) || []).filter((t) => now - t < 10 * 60 * 1000);
+        const pending = [...this.guestRequests.values()].filter((r) => r.status === 'pending').length;
+        if (recent.length >= 5 || pending >= 10) {
+          this.sendGuest(ws, { type: 'GUEST_STATUS', status: 'busy' });
+          return;
+        }
+        recent.push(now);
+        this.guestRequestLog.set(ws.clientIp, recent);
+
+        const name = String(msg.name || '').replace(/\s+/g, ' ').trim().slice(0, 40);
+        const uuid = this.guestDisplays().some((d) => d.uuid === msg.uuid) ? msg.uuid : null;
+        if (!name) return;
+        const r = {
+          id: crypto.randomUUID(), ws, name, ip: ws.clientIp, uuid, code: this.generatePairingCode(),
+          status: 'pending', createdAt: new Date().toISOString(), expiresAt: null, timer: null,
+        };
+        // Unanswered requests lapse after 10 minutes
+        r.timer = setTimeout(() => this.endGuestRequest(r, 'lapsed'), 10 * 60 * 1000);
+        this.guestRequests.set(r.id, r);
+        ws.guestRequestId = r.id;
+        this.sendGuest(ws, { type: 'GUEST_STATUS', status: 'pending', code: r.code });
+        this.log('info', 'guest', uuid, `${name} (${r.ip}) asks to share a screen, code ${r.code}`);
+        this.broadcastGuestRequests();
+        break;
+      }
+
+      case 'CAST_OFFER':
+        // Only to the screen and within the time an operator approved
+        if (request?.status === 'approved' && Date.now() < Date.parse(request.expiresAt)) {
+          if (this.startCast(ws, request.uuid, msg, `guest ${request.name}`)) this.broadcastGuestRequests();
+        }
+        break;
+
+      case 'CAST_STOP':
+        if (request && this.casters.get(request.uuid) === ws) {
+          this.casters.delete(request.uuid);
+          this.sendToDisplay(request.uuid, { type: 'CAST_STOP' });
+          this.broadcastGuestRequests();
+        }
+        break;
+
+      default:
+        break;
+    }
+  }
+
+  // Approve, reject or stop, from any signed-in dashboard user (operator or admin)
+  handleGuestDecision(ws, msg) {
+    const r = this.guestRequests.get(msg.id);
+    if (!r) return;
+    const who = ws.user?.username || 'dashboard';
+
+    if (msg.type === 'GUEST_APPROVE' && r.status === 'pending') {
+      const display = db.getOne('SELECT uuid, name FROM displays WHERE uuid = ? AND token IS NOT NULL', msg.uuid);
+      if (!display) return;
+      const minutes = Math.min(Math.max(Number(msg.minutes) || 60, 5), 8 * 60);
+      clearTimeout(r.timer);
+      r.status = 'approved';
+      r.uuid = display.uuid;
+      r.approvedBy = who;
+      r.expiresAt = new Date(Date.now() + minutes * 60 * 1000).toISOString();
+      r.timer = setTimeout(() => this.endGuestRequest(r, 'expired'), minutes * 60 * 1000);
+      this.sendGuest(r.ws, { type: 'GUEST_STATUS', status: 'approved', uuid: display.uuid, displayName: display.name, expiresAt: r.expiresAt });
+      this.log('command', who, display.uuid, `Approved ${r.name} (${r.ip}) to share a screen on '${display.name}' for ${minutes} min`);
+      this.broadcastGuestRequests();
+    } else if (msg.type === 'GUEST_REJECT' && r.status === 'pending') {
+      this.log('info', who, r.uuid, `Rejected the screen sharing request of ${r.name} (${r.ip})`);
+      this.endGuestRequest(r, 'rejected');
+    } else if (msg.type === 'GUEST_STOP' && r.status === 'approved') {
+      this.log('command', who, r.uuid, `Stopped the screen sharing of ${r.name}`);
+      this.endGuestRequest(r, 'stopped');
+    }
+  }
+
+  endGuestRequest(r, reason) {
+    if (!this.guestRequests.has(r.id)) return;
+    clearTimeout(r.timer);
+    this.guestRequests.delete(r.id);
+    this.stopCastsOf(r.ws);
+    this.sendGuest(r.ws, { type: 'GUEST_STATUS', status: reason });
+    r.ws.guestRequestId = null;
+    this.broadcastGuestRequests();
   }
 
   removeRemoteViewer(uuid, ws) {
@@ -454,12 +612,11 @@ class DisplayWebSocketHub {
         this.removeRemoteViewer(uuid, ws);
       }
       // A closed dashboard can no longer feed its stream; let the screen go back to its playlist
-      for (const [uuid, caster] of [...this.casters]) {
-        if (caster === ws) {
-          this.casters.delete(uuid);
-          this.sendToDisplay(uuid, { type: 'CAST_STOP' });
-        }
-      }
+      this.stopCastsOf(ws);
+    } else if (ws.clientType === 'guest') {
+      const r = ws.guestRequestId && this.guestRequests.get(ws.guestRequestId);
+      if (r) this.endGuestRequest(r, 'closed');
+      else this.stopCastsOf(ws);
     } else if (ws.displayUuid && this.displaySockets.get(ws.displayUuid) === ws) {
       // Only the current socket of a display counts: an old one closing late must not unregister the new one
       this.displaySockets.delete(ws.displayUuid);
@@ -470,6 +627,7 @@ class DisplayWebSocketHub {
         caster.send(JSON.stringify({ type: 'CAST_STATUS', uuid: ws.displayUuid, status: 'offline' }));
       }
       this.casters.delete(ws.displayUuid);
+      if (caster?.clientType === 'guest') this.broadcastGuestRequests();
       db.run(
         `UPDATE displays SET status = 'offline', updated_at = datetime('now') WHERE uuid = ?`,
         ws.displayUuid

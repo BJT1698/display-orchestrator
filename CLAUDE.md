@@ -54,6 +54,13 @@ viewer, sync it: `rsync -a --delete client/viewer/ nixos/client/viewer/ && cp cl
   the viewer answers through a localhost-only `POST /api/agent/cast-answer`. One complete SDP each
   way, no trickle. Needs the dashboard on **HTTPS** (`getDisplayMedia`), and on the display the
   Chromium policy + firewall range UDP 50000-50100 from `nixos/modules/client-appliance.nix`.
+- **Guest screen sharing**: public page `/cast` (`frontend/src/cast/`, second Vite entry `cast.html`),
+  WS `/ws?type=guest` with no session. The guest sends `GUEST_REQUEST` (name, wished screen) and gets
+  a code; any signed-in dashboard user answers `GUEST_APPROVE` (screen, minutes) / `GUEST_REJECT` /
+  `GUEST_STOP`; dashboards get `GUEST_REQUESTS`. Only after approval, and until it expires, the
+  guest's `CAST_OFFER` goes to the approved screen, then it is the normal cast flow. Requests live in
+  memory only; closing the page ends them; 5 requests per IP per 10 min, 10 pending at most,
+  guest messages over 64 KB close the socket.
 - **Orientation** is owned by the server (`landscape`, `portrait`, `landscape-flipped`,
   `portrait-flipped`). The agent applies it as a compositor transform with `wlr-randr` (Cage
   supports wlr-output-management) and re-checks every 5 s; the handshake must not overwrite it.

@@ -60,6 +60,9 @@ app.use('/fonts', (req, res, next) => {
 // Serve frontend SPA
 app.use(express.static(config.publicDir));
 
+// Public page for guests who ask to share their screen (approval happens in the dashboard)
+app.get('/cast', (req, res) => res.sendFile(path.join(config.publicDir, 'cast.html')));
+
 // Fallback to index.html for client-side routing
 app.get('*', (req, res, next) => {
   if (req.path.startsWith('/api/') || req.path.startsWith('/media/') || req.path.startsWith('/ws')) {
