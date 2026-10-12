@@ -75,6 +75,16 @@ const TYPE_META = {
   html_snippet: { label: 'HTML', Icon: Code },
 };
 
+// How a screen is mounted; the screen's agent rotates its output to match
+export const ORIENTATIONS = {
+  landscape: 'Landscape',
+  portrait: 'Portrait',
+  'landscape-flipped': 'Landscape, upside down',
+  'portrait-flipped': 'Portrait, flipped',
+};
+
+export const isPortrait = (orientation) => String(orientation || '').startsWith('portrait');
+
 export function mediaTypeLabel(type) {
   return TYPE_META[type]?.label || type;
 }

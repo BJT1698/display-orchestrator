@@ -16,6 +16,10 @@ let
     export SERVER_URL="''${SERVER_URL:-ws://10.0.2.2:8080/ws}"
     export CLIENT_NAME="''${CLIENT_NAME:-Signage-Kiosk}"
     export VIEWER_DIR="''${VIEWER_DIR:-${clientDir}/viewer}"
+    # Agent output goes to the journal as it happens
+    export PYTHONUNBUFFERED=1
+    # wlr-randr rotates the kiosk output (orientation set from the dashboard)
+    export PATH="${lib.makeBinPath [ pkgs.wlr-randr ]}:$PATH"
 
     mkdir -p "$CACHE_DIR/media"
 

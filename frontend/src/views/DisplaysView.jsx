@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { RefreshCw, MoonStar, Sun, Globe, Trash2, RotateCw, Plus, MousePointerClick, MonitorUp } from 'lucide-react';
+import { RefreshCw, MoonStar, Sun, Globe, Trash2, Plus, MousePointerClick, MonitorUp } from 'lucide-react';
 import { api } from '../services/api';
-import { PageHeader, EmptyState, Tally, formatDuration } from '../components/ui';
+import { PageHeader, EmptyState, Tally, formatDuration, ORIENTATIONS } from '../components/ui';
 
 export function DisplaysView({
   displays,
@@ -42,10 +42,9 @@ export function DisplaysView({
     }
   };
 
-  const handleToggleOrientation = async (display) => {
-    const nextOrientation = display.orientation === 'portrait' ? 'landscape' : 'portrait';
+  const handleOrientation = async (display, orientation) => {
     try {
-      await api.updateDisplay(display.id, { orientation: nextOrientation });
+      await api.updateDisplay(display.id, { orientation });
       onRefresh && onRefresh();
     } catch (err) {
       alert('Could not change the orientation: ' + err.message);
@@ -138,7 +137,18 @@ export function DisplaysView({
                         ))}
                       </select>
                     </td>
-                    <td className="text-muted capitalize">{display.orientation || 'landscape'}</td>
+                    <td>
+                      <select
+                        value={display.orientation || 'landscape'}
+                        onChange={(e) => handleOrientation(display, e.target.value)}
+                        className="control h-8 w-auto"
+                        aria-label={`Orientation of ${display.name}`}
+                      >
+                        {Object.entries(ORIENTATIONS).map(([value, label]) => (
+                          <option key={value} value={value}>{label}</option>
+                        ))}
+                      </select>
+                    </td>
                     <td className="text-xs text-muted whitespace-nowrap">
                       {isOnline && metrics.uptimeSeconds ? (
                         <>
@@ -186,14 +196,6 @@ export function DisplaysView({
                           aria-label={`Reload ${display.name}`}
                         >
                           <RefreshCw className={`w-4 h-4 ${busy('reload') ? 'animate-spin' : ''}`} />
-                        </button>
-                        <button
-                          onClick={() => handleToggleOrientation(display)}
-                          className="btn-icon"
-                          title="Switch orientation"
-                          aria-label={`Switch orientation of ${display.name}`}
-                        >
-                          <RotateCw className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleCommand(display.id, 'blank', { state: true })}
