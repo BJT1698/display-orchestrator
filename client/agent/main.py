@@ -392,32 +392,47 @@ remote = RemoteSession()
 
 # --- Thumbnails for the dashboard's display wall -----------------------------
 # A small JPEG of what the screen shows (playlist, pushed page, shared screen, alerts), sent only
-# when it changed. Chromium scales the capture itself, so the frame stays a few tens of KB.
+# when it changed; a few KB each.
 
 THUMBNAIL_EVERY = 15  # seconds
 THUMBNAIL_WIDTH = 480  # pixels
 
 async def capture_thumbnail():
+    """One screencast frame instead of Page.captureScreenshot: a scaled screenshot makes Chromium
+    re-render the page at another size, which flashes on the real screen. The screencast just
+    hands over a frame the compositor already produced, scaled on the side."""
+    if remote.cdp is not None:
+        return None  # a remote control session is streaming already; do not compete with it
     target = await asyncio.get_running_loop().run_in_executor(None, remote.find_page_target)
     if not target:
         return None
     async with websockets.connect(target["webSocketDebuggerUrl"], max_size=None) as cdp:
-        async def call(msg_id, method, params=None):
-            await cdp.send(json.dumps({"id": msg_id, "method": method, "params": params or {}}))
-            while True:
-                reply = json.loads(await asyncio.wait_for(cdp.recv(), 10))
-                if reply.get("id") == msg_id:
-                    return reply.get("result", {})
+        msg_id = 0
 
-        metrics = await call(1, "Page.getLayoutMetrics")
-        view = metrics.get("cssVisualViewport") or metrics.get("layoutViewport") or {}
-        width, height = view.get("clientWidth") or 1920, view.get("clientHeight") or 1080
-        shot = await call(2, "Page.captureScreenshot", {
-            "format": "jpeg",
-            "quality": 55,
-            "clip": {"x": 0, "y": 0, "width": width, "height": height, "scale": min(1, THUMBNAIL_WIDTH / width)},
+        async def send(method, params=None):
+            nonlocal msg_id
+            msg_id += 1
+            await cdp.send(json.dumps({"id": msg_id, "method": method, "params": params or {}}))
+
+        await send("Page.enable")
+        await send("Page.startScreencast", {
+            "format": "jpeg", "quality": 55,
+            "maxWidth": THUMBNAIL_WIDTH, "maxHeight": THUMBNAIL_WIDTH, "everyNthFrame": 1,
         })
-        return {"data": shot.get("data"), "width": int(width), "height": int(height)}
+        try:
+            while True:
+                msg = json.loads(await asyncio.wait_for(cdp.recv(), 5))
+                if msg.get("method") == "Page.screencastFrame":
+                    params = msg["params"]
+                    meta = params.get("metadata", {})
+                    await send("Page.screencastFrameAck", {"sessionId": params["sessionId"]})
+                    return {
+                        "data": params["data"],
+                        "width": int(meta.get("deviceWidth") or 0) or None,
+                        "height": int(meta.get("deviceHeight") or 0) or None,
+                    }
+        finally:
+            await send("Page.stopScreencast")
 
 async def send_thumbnails(ws):
     last = None
