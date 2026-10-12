@@ -390,6 +390,73 @@ class RemoteSession:
 
 remote = RemoteSession()
 
+# --- Thumbnails for the dashboard's display wall -----------------------------
+# A small JPEG of what the screen shows (playlist, pushed page, shared screen, alerts), sent only
+# when it changed; a few KB each.
+
+THUMBNAIL_EVERY = 15  # seconds
+THUMBNAIL_WIDTH = 480  # pixels
+
+async def capture_thumbnail():
+    """One screencast frame instead of Page.captureScreenshot: a scaled screenshot makes Chromium
+    re-render the page at another size, which flashes on the real screen. The screencast just
+    hands over a frame the compositor already produced, scaled on the side."""
+    if remote.cdp is not None:
+        return None  # a remote control session is streaming already; do not compete with it
+    target = await asyncio.get_running_loop().run_in_executor(None, remote.find_page_target)
+    if not target:
+        return None
+    async with websockets.connect(target["webSocketDebuggerUrl"], max_size=None) as cdp:
+        msg_id = 0
+
+        async def send(method, params=None):
+            nonlocal msg_id
+            msg_id += 1
+            await cdp.send(json.dumps({"id": msg_id, "method": method, "params": params or {}}))
+
+        await send("Page.enable")
+        await send("Page.startScreencast", {
+            "format": "jpeg", "quality": 55,
+            "maxWidth": THUMBNAIL_WIDTH, "maxHeight": THUMBNAIL_WIDTH, "everyNthFrame": 1,
+        })
+        try:
+            while True:
+                msg = json.loads(await asyncio.wait_for(cdp.recv(), 5))
+                if msg.get("method") == "Page.screencastFrame":
+                    params = msg["params"]
+                    meta = params.get("metadata", {})
+                    await send("Page.screencastFrameAck", {"sessionId": params["sessionId"]})
+                    return {
+                        "data": params["data"],
+                        "width": int(meta.get("deviceWidth") or 0) or None,
+                        "height": int(meta.get("deviceHeight") or 0) or None,
+                    }
+        finally:
+            await send("Page.stopScreencast")
+
+async def send_thumbnails(ws):
+    last = None
+    while True:
+        try:
+            thumb = await capture_thumbnail()
+            if thumb and thumb["data"] and thumb["data"] != last:
+                last = thumb["data"]
+                await ws.send(json.dumps({
+                    "type": "SCREENSHOT_DATA",
+                    "uuid": config["uuid"],
+                    "imageBase64": thumb["data"],
+                    "width": thumb["width"],
+                    "height": thumb["height"],
+                }))
+        except asyncio.CancelledError:
+            raise
+        except websockets.ConnectionClosed:
+            return
+        except Exception as e:
+            # No browser yet (boot) or DevTools unavailable: try again next round
+            print(f"Thumbnail skipped: {e}", file=sys.stderr)
+        await asyncio.sleep(THUMBNAIL_EVERY)
+
 def start_http_server(port):
     server = HTTPServer(("0.0.0.0", port), ViewerHTTPHandler)
     print(f"✓ Local Viewer HTTP server listening on http://0.0.0.0:{port}")
@@ -495,8 +562,9 @@ async def ws_loop():
                 }
                 await ws.send(json.dumps(handshake))
 
-                # Background heartbeat task
+                # Background heartbeat and thumbnail tasks
                 heartbeat_task = asyncio.create_task(send_heartbeats(ws))
+                thumbnail_task = asyncio.create_task(send_thumbnails(ws))
 
                 # Receive messages
                 async for message in ws:
@@ -507,6 +575,7 @@ async def ws_loop():
                         print(f"Error handling message: {err}", file=sys.stderr)
 
                 heartbeat_task.cancel()
+                thumbnail_task.cancel()
                 remote.stop()
                 overrides["cast"] = None  # the stream cannot outlive the signaling link
 
@@ -563,7 +632,7 @@ async def handle_ws_message(ws, msg):
         pl = msg.get("playlist")
         if pl:
             sync_playlist_media(pl)
-            ack = {"type": "SYNC_ACK", "uuid": config["uuid"], "playlistId": pl.get("id")}
+            ack = {"type": "SYNC_ACK", "uuid": config["uuid"], "playlistId": pl.get("id"), "cachedCount": len(pl.get("items", []))}
             await ws.send(json.dumps(ack))
 
     elif mtype == "PUSH_URL":

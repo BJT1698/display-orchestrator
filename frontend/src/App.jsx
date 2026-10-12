@@ -71,6 +71,7 @@ function Console({ user, onSignOut }) {
   const [systemStats, setSystemStats] = useState(null);
   const [logs, setLogs] = useState([]);
   const [wsConnected, setWsConnected] = useState(false);
+  const [thumbnails, setThumbnails] = useState({}); // display uuid -> latest screen picture
 
   // Modals state
   const [isPairingOpen, setIsPairingOpen] = useState(false);
@@ -212,6 +213,10 @@ function Console({ user, onSignOut }) {
           loadData();
           break;
 
+        case 'DISPLAY_SCREENSHOT':
+          setThumbnails((prev) => ({ ...prev, [msg.data.uuid]: msg.data }));
+          break;
+
         case 'LOG_ENTRY':
           setLogs((prev) => [msg.data, ...prev.slice(0, 49)]);
           break;
@@ -327,6 +332,7 @@ function Console({ user, onSignOut }) {
               playlists={playlists}
               logs={logs}
               isAdmin={isAdmin}
+              thumbnails={thumbnails}
               onOpenPairing={() => setIsPairingOpen(true)}
               onOpenEmergency={() => setIsEmergencyOpen(true)}
               onSelectDisplay={(d) => {

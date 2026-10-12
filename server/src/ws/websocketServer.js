@@ -18,6 +18,7 @@ class DisplayWebSocketHub {
     this.dashboardSockets = new Set(); // Set of ws
     this.remoteViewers = new Map(); // display uuid -> Set of dashboard ws watching its browser
     this.casters = new Map(); // display uuid -> dashboard ws currently sharing its screen to it
+    this.thumbnails = new Map(); // display uuid -> latest screen thumbnail for the display wall
     this.heartbeatTimer = null;
   }
 
@@ -105,6 +106,11 @@ class DisplayWebSocketHub {
         serverTime: new Date().toISOString()
       }
     }));
+
+    // A freshly opened dashboard gets the current picture of every screen right away
+    for (const [uuid, thumb] of this.thumbnails) {
+      ws.send(JSON.stringify({ type: 'DISPLAY_SCREENSHOT', data: { uuid, ...thumb } }));
+    }
   }
 
   handleDisplayConnection(ws, searchParams) {
@@ -196,6 +202,7 @@ class DisplayWebSocketHub {
       );
       // Orientation is owned by the server (set from the dashboard); the ACK tells the screen which one to use
 
+      ws.authenticated = true;
       ws.send(JSON.stringify({
         type: 'HANDSHAKE_ACK',
         status: 'AUTHENTICATED',
@@ -310,11 +317,19 @@ class DisplayWebSocketHub {
   }
 
   handleScreenshotData(ws, msg) {
-    const { uuid, imageBase64 } = msg;
-    this.broadcastToDashboards({
-      type: 'DISPLAY_SCREENSHOT',
-      data: { uuid, imageBase64, timestamp: new Date().toISOString() }
-    });
+    // Trust the socket, not the message: a screen can only update its own thumbnail, once paired
+    const uuid = ws.displayUuid;
+    const imageBase64 = msg.imageBase64;
+    if (!uuid || !ws.authenticated || typeof imageBase64 !== 'string' || imageBase64.length > 400 * 1024) return;
+
+    const thumb = {
+      imageBase64,
+      width: Number(msg.width) || null,
+      height: Number(msg.height) || null,
+      timestamp: new Date().toISOString(),
+    };
+    this.thumbnails.set(uuid, thumb);
+    this.broadcastToDashboards({ type: 'DISPLAY_SCREENSHOT', data: { uuid, ...thumb } });
   }
 
   handleLogEvent(ws, msg) {
@@ -596,6 +611,8 @@ class DisplayWebSocketHub {
     // Send token and confirmation to display client if connected
     const ws = this.displaySockets.get(pairing.uuid);
     if (ws && ws.readyState === WebSocket.OPEN) {
+      // The screen keeps this connection after approval: treat it as authenticated from now on
+      ws.authenticated = true;
       ws.send(JSON.stringify({
         type: 'PAIRING_APPROVED',
         token: pairing.token,

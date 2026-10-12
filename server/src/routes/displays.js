@@ -139,6 +139,7 @@ displaysRouter.delete('/:id', requireAdmin, (req, res) => {
   }
 
   db.run('DELETE FROM displays WHERE id = ?', display.id);
+  wsHub.thumbnails.delete(display.uuid);
   db.run('DELETE FROM pairing_requests WHERE uuid = ?', display.uuid);
 
   wsHub.broadcastToDashboards({
