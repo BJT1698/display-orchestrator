@@ -39,6 +39,9 @@ viewer, sync it: `rsync -a --delete client/viewer/ nixos/client/viewer/ && cp cl
   the viewer answers through a localhost-only `POST /api/agent/cast-answer`. One complete SDP each
   way, no trickle. Needs the dashboard on **HTTPS** (`getDisplayMedia`), and on the display the
   Chromium policy + firewall range UDP 50000-50100 from `nixos/modules/client-appliance.nix`.
+- **Orientation** is owned by the server (`landscape`, `portrait`, `landscape-flipped`,
+  `portrait-flipped`). The agent applies it as a compositor transform with `wlr-randr` (Cage
+  supports wlr-output-management) and re-checks every 5 s; the handshake must not overwrite it.
 - Schedules are evaluated in the server's local time zone; overnight ranges (19:00-08:00) work,
   but days are checked against the current day.
 
@@ -101,7 +104,7 @@ the Chrome DevTools Protocol. For screen sharing in headless tests, replace
 ## Open items
 
 - Dashboard has no authentication: anyone on the LAN can change content and drive screens.
-- Verify on real hardware: HDMI hotplug and lid-closed boot (`modules/laptop.nix`), Wi-Fi-only install.
-- Orientation (`SET_ORIENTATION`) is stored but the screen does not rotate.
+- Verify on real hardware: HDMI unplug/replug and lid-closed boot (`modules/laptop.nix`), Wi-Fi-only
+  install. Booting with HDMI attached already shows only the external screen.
 - Wi-Fi can only be changed after first boot over SSH (`nmcli`).
 - README still documents the Go backend.
