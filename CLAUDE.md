@@ -24,6 +24,21 @@ The working container path is `deploy/Dockerfile.server`.
 **`nixos/client/` is a copy of `client/`** used by the image. After changing the agent or the
 viewer, sync it: `rsync -a --delete client/viewer/ nixos/client/viewer/ && cp client/agent/main.py nixos/client/agent/main.py`.
 
+## Authentication
+
+- Local accounts, roles `admin` and `operator` (`server/src/auth/auth.js`, routes `auth.js` and
+  `users.js`). scrypt hashes; session cookie `sc_session` (HttpOnly, SameSite=Lax, Secure over
+  HTTPS), only its SHA-256 in the `sessions` table, one-week sliding expiry.
+- Everything under `/api` needs a session except `/api/health` and `/api/auth/*`; `/media` and the
+  display WebSocket stay open for screens. The dashboard WebSocket is closed with code 4401
+  without a session; the dashboard then shows the sign-in screen.
+- Admin only: users, pairing approve/reject, removing displays, clearing the log. At least one
+  active administrator is enforced.
+- First run (no users): the server prints a setup code in its log and writes
+  `DATA_DIR/setup-code.txt`; the dashboard asks for it to create the first administrator.
+- Lost all admin passwords: stop the server, delete the rows in `users` (sessions cascade),
+  restart, and use the new setup code.
+
 ## How the pieces talk
 
 - Display ↔ server: WebSocket `/ws?type=display&uuid=…`. Handshake → `AUTHENTICATED` or `UNPAIRED`
@@ -103,7 +118,6 @@ the Chrome DevTools Protocol. For screen sharing in headless tests, replace
 
 ## Open items
 
-- Dashboard has no authentication: anyone on the LAN can change content and drive screens.
 - Verify on real hardware: HDMI unplug/replug and lid-closed boot (`modules/laptop.nix`), Wi-Fi-only
   install. Booting with HDMI attached already shows only the external screen.
 - Wi-Fi can only be changed after first boot over SSH (`nmcli`).
