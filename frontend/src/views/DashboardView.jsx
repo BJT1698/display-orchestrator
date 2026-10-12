@@ -2,9 +2,18 @@ import React from 'react';
 import { KeyRound, Plus } from 'lucide-react';
 import { EmptyState, Tally, formatDuration, formatTime, isPortrait } from '../components/ui';
 
-function ScreenTile({ display, onSelect }) {
+function thumbnailAge(timestamp) {
+  const seconds = Math.max(0, Math.round((Date.now() - new Date(timestamp).getTime()) / 1000));
+  if (seconds < 60) return 'just now';
+  const minutes = Math.round(seconds / 60);
+  return minutes < 60 ? `${minutes} min ago` : `${Math.round(minutes / 60)} h ago`;
+}
+
+function ScreenTile({ display, thumbnail, onSelect }) {
   const isOnline = display.status === 'online';
-  const portrait = isPortrait(display.orientation);
+  const shot = isOnline ? thumbnail : null;
+  // The picture's own shape is the truth; fall back to the configured orientation
+  const portrait = shot?.width && shot?.height ? shot.height > shot.width : isPortrait(display.orientation);
   const playlist = display.current_playlist_name;
 
   return (
@@ -17,8 +26,14 @@ function ScreenTile({ display, onSelect }) {
       {/* Monitor bezel: the tally strip on top carries the on-air state */}
       <div className="relative aspect-video rounded-sm bg-raised border border-line group-hover:border-line-strong transition-colors overflow-hidden">
         <div className={`absolute inset-x-0 top-0 h-1 z-10 ${isOnline ? 'bg-live' : 'bg-line-strong'}`} />
-        <div className={`absolute bg-black ${portrait ? 'inset-y-3 left-1/2 -translate-x-1/2 aspect-[9/16]' : 'inset-[6px] top-[10px]'}`}>
-          {isOnline ? (
+        <div className={`absolute bg-black overflow-hidden ${portrait ? 'inset-y-3 left-1/2 -translate-x-1/2 aspect-[9/16]' : 'inset-[6px] top-[10px]'}`}>
+          {shot ? (
+            <img
+              src={`data:image/jpeg;base64,${shot.imageBase64}`}
+              alt={`What ${display.name} is showing`}
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          ) : isOnline ? (
             <div className="absolute inset-0 flex flex-col justify-end p-3">
               <div className={`display font-semibold text-ink leading-tight ${portrait ? 'text-sm' : 'text-lg'} line-clamp-2`}>
                 {playlist || 'Standby'}
@@ -37,10 +52,13 @@ function ScreenTile({ display, onSelect }) {
         <div className="min-w-0">
           <div className="text-sm font-medium text-ink truncate">{display.name}</div>
           <div className="text-xs text-faint truncate">
-            {display.group_name || 'No group'}
+            {isOnline && playlist ? `${playlist}, ` : ''}{display.group_name || 'No group'}
           </div>
         </div>
-        <div className="text-xs text-faint shrink-0 pt-0.5">{display.ip_address || ''}</div>
+        <div className="text-xs text-faint shrink-0 pt-0.5 text-right">
+          <div>{display.ip_address || ''}</div>
+          {shot && <div>{thumbnailAge(shot.timestamp)}</div>}
+        </div>
       </div>
     </button>
   );
@@ -66,6 +84,7 @@ export function DashboardView({
   logs,
   onOpenPairing,
   isAdmin,
+  thumbnails = {},
   onSelectDisplay,
   onNavigate
 }) {
@@ -135,7 +154,7 @@ export function DashboardView({
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-x-6 gap-y-8">
             {sortedDisplays.map((display) => (
-              <ScreenTile key={display.id} display={display} onSelect={onSelectDisplay} />
+              <ScreenTile key={display.id} display={display} thumbnail={thumbnails[display.uuid]} onSelect={onSelectDisplay} />
             ))}
           </div>
         )}

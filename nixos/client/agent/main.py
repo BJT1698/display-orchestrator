@@ -390,6 +390,58 @@ class RemoteSession:
 
 remote = RemoteSession()
 
+# --- Thumbnails for the dashboard's display wall -----------------------------
+# A small JPEG of what the screen shows (playlist, pushed page, shared screen, alerts), sent only
+# when it changed. Chromium scales the capture itself, so the frame stays a few tens of KB.
+
+THUMBNAIL_EVERY = 15  # seconds
+THUMBNAIL_WIDTH = 480  # pixels
+
+async def capture_thumbnail():
+    target = await asyncio.get_running_loop().run_in_executor(None, remote.find_page_target)
+    if not target:
+        return None
+    async with websockets.connect(target["webSocketDebuggerUrl"], max_size=None) as cdp:
+        async def call(msg_id, method, params=None):
+            await cdp.send(json.dumps({"id": msg_id, "method": method, "params": params or {}}))
+            while True:
+                reply = json.loads(await asyncio.wait_for(cdp.recv(), 10))
+                if reply.get("id") == msg_id:
+                    return reply.get("result", {})
+
+        metrics = await call(1, "Page.getLayoutMetrics")
+        view = metrics.get("cssVisualViewport") or metrics.get("layoutViewport") or {}
+        width, height = view.get("clientWidth") or 1920, view.get("clientHeight") or 1080
+        shot = await call(2, "Page.captureScreenshot", {
+            "format": "jpeg",
+            "quality": 55,
+            "clip": {"x": 0, "y": 0, "width": width, "height": height, "scale": min(1, THUMBNAIL_WIDTH / width)},
+        })
+        return {"data": shot.get("data"), "width": int(width), "height": int(height)}
+
+async def send_thumbnails(ws):
+    last = None
+    while True:
+        try:
+            thumb = await capture_thumbnail()
+            if thumb and thumb["data"] and thumb["data"] != last:
+                last = thumb["data"]
+                await ws.send(json.dumps({
+                    "type": "SCREENSHOT_DATA",
+                    "uuid": config["uuid"],
+                    "imageBase64": thumb["data"],
+                    "width": thumb["width"],
+                    "height": thumb["height"],
+                }))
+        except asyncio.CancelledError:
+            raise
+        except websockets.ConnectionClosed:
+            return
+        except Exception as e:
+            # No browser yet (boot) or DevTools unavailable: try again next round
+            print(f"Thumbnail skipped: {e}", file=sys.stderr)
+        await asyncio.sleep(THUMBNAIL_EVERY)
+
 def start_http_server(port):
     server = HTTPServer(("0.0.0.0", port), ViewerHTTPHandler)
     print(f"✓ Local Viewer HTTP server listening on http://0.0.0.0:{port}")
@@ -495,8 +547,9 @@ async def ws_loop():
                 }
                 await ws.send(json.dumps(handshake))
 
-                # Background heartbeat task
+                # Background heartbeat and thumbnail tasks
                 heartbeat_task = asyncio.create_task(send_heartbeats(ws))
+                thumbnail_task = asyncio.create_task(send_thumbnails(ws))
 
                 # Receive messages
                 async for message in ws:
@@ -507,6 +560,7 @@ async def ws_loop():
                         print(f"Error handling message: {err}", file=sys.stderr)
 
                 heartbeat_task.cancel()
+                thumbnail_task.cancel()
                 remote.stop()
                 overrides["cast"] = None  # the stream cannot outlive the signaling link
 
@@ -563,7 +617,7 @@ async def handle_ws_message(ws, msg):
         pl = msg.get("playlist")
         if pl:
             sync_playlist_media(pl)
-            ack = {"type": "SYNC_ACK", "uuid": config["uuid"], "playlistId": pl.get("id")}
+            ack = {"type": "SYNC_ACK", "uuid": config["uuid"], "playlistId": pl.get("id"), "cachedCount": len(pl.get("items", []))}
             await ws.send(json.dumps(ack))
 
     elif mtype == "PUSH_URL":
