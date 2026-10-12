@@ -1,10 +1,10 @@
 import React from 'react';
 import { KeyRound, Plus } from 'lucide-react';
-import { EmptyState, Tally, formatDuration, formatTime } from '../components/ui';
+import { EmptyState, Tally, formatDuration, formatTime, isPortrait } from '../components/ui';
 
 function ScreenTile({ display, onSelect }) {
   const isOnline = display.status === 'online';
-  const portrait = display.orientation === 'portrait';
+  const portrait = isPortrait(display.orientation);
   const playlist = display.current_playlist_name;
 
   return (

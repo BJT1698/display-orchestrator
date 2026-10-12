@@ -4,6 +4,9 @@ import { wsHub } from '../ws/websocketServer.js';
 
 export const displaysRouter = express.Router();
 
+// Physical mounting of a screen; the agent maps these to compositor transforms
+const ORIENTATIONS = ['landscape', 'portrait', 'landscape-flipped', 'portrait-flipped'];
+
 // List all displays
 displaysRouter.get('/', (req, res) => {
   const displays = db.all(`
@@ -98,6 +101,10 @@ displaysRouter.put('/:id', (req, res) => {
 
   if (!display) {
     return res.status(404).json({ success: false, error: 'Display not found' });
+  }
+
+  if (orientation !== undefined && !ORIENTATIONS.includes(orientation)) {
+    return res.status(400).json({ success: false, error: `Orientation must be one of: ${ORIENTATIONS.join(', ')}` });
   }
 
   const newName = name !== undefined ? name : display.name;

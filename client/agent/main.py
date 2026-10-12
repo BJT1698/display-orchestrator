@@ -14,6 +14,7 @@ import urllib.request
 import urllib.parse
 import threading
 import subprocess
+import shutil
 from pathlib import Path
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 
@@ -173,6 +174,70 @@ def current_overrides():
         if entry and entry["expiresAt"] <= now_ms:
             overrides[key] = None
     return overrides
+
+# --- Screen orientation ----------------------------------------------------
+# The orientation chosen in the dashboard is applied as a compositor transform (Cage speaks
+# wlr-output-management), so Chromium really gets a portrait viewport. It is re-checked
+# periodically: a new display plugged in or a restarted kiosk starts unrotated.
+
+TRANSFORMS = {
+    "landscape": "normal",
+    "portrait": "90",
+    "landscape-flipped": "180",
+    "portrait-flipped": "270",
+}
+
+def wayland_env():
+    runtime = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
+    display = os.environ.get("WAYLAND_DISPLAY")
+    if not display:
+        try:
+            sockets = sorted(p.name for p in Path(runtime).glob("wayland-*") if not p.name.endswith(".lock"))
+        except OSError:
+            sockets = []
+        display = sockets[0] if sockets else None
+    if not display or not Path(runtime, display).exists():
+        return None
+    return {**os.environ, "XDG_RUNTIME_DIR": runtime, "WAYLAND_DISPLAY": display}
+
+orientation_lock = threading.Lock()
+
+def apply_orientation():
+    """Rotate every enabled output to the configured orientation; quiet no-op without a compositor."""
+    wlr_randr = shutil.which("wlr-randr")
+    env = wayland_env()
+    if not wlr_randr or env is None:
+        return
+    target = TRANSFORMS.get(config.get("orientation", "landscape"), "normal")
+    with orientation_lock:
+        try:
+            listing = subprocess.run([wlr_randr, "--json"], env=env, capture_output=True, text=True, timeout=5)
+            outputs = json.loads(listing.stdout or "[]")
+        except (OSError, subprocess.TimeoutExpired, ValueError):
+            return
+        for output in outputs:
+            if not output.get("enabled") or output.get("transform") == target:
+                continue
+            result = subprocess.run(
+                [wlr_randr, "--output", output["name"], "--transform", target],
+                env=env, capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode == 0:
+                print(f"↻ {output['name']} rotated to {config.get('orientation')} ({target})")
+            else:
+                print(f"Rotation of {output['name']} failed: {result.stderr.strip()}", file=sys.stderr)
+
+def set_orientation(value):
+    if value not in TRANSFORMS or value == config.get("orientation"):
+        return
+    config["orientation"] = value
+    save_config(config)  # remembered for offline boots
+    threading.Thread(target=apply_orientation, daemon=True).start()
+
+def orientation_watch():
+    while True:
+        apply_orientation()
+        time.sleep(5)
 
 # --- Remote browser control -------------------------------------------------
 # The kiosk Chromium exposes DevTools on localhost only. While someone watches
@@ -482,6 +547,8 @@ async def handle_ws_message(ws, msg):
         if status == "AUTHENTICATED":
             print(f"✓ Authenticated with server. (Display #{msg.get('displayId')})")
             active_pairing_code = ""
+            if msg.get("orientation"):
+                set_orientation(msg["orientation"])
         elif status == "UNPAIRED":
             active_pairing_code = msg.get("pairingCode", "---")
             print(f"🔒 Screen Unpaired. PIN: {active_pairing_code}")
@@ -523,6 +590,10 @@ async def handle_ws_message(ws, msg):
         print("📺 Screen sharing stopped")
         overrides["cast"] = None
 
+    elif mtype == "SET_ORIENTATION":
+        print(f"↻ Orientation set to {msg.get('orientation')}")
+        set_orientation(msg.get("orientation"))
+
     elif mtype == "REMOTE_START":
         remote.start(ws)
 
@@ -554,11 +625,14 @@ def main():
     # 1. Load cached playlist from disk for instant startup
     load_offline_cached_playlist()
 
-    # 2. Start local HTTP server thread
+    # 2. Keep the screen rotated as configured (also before the server answers)
+    threading.Thread(target=orientation_watch, daemon=True).start()
+
+    # 3. Start local HTTP server thread
     http_thread = threading.Thread(target=start_http_server, args=(config["httpPort"],), daemon=True)
     http_thread.start()
 
-    # 3. Start async WebSocket loop
+    # 4. Start async WebSocket loop
     if HAS_WEBSOCKETS:
         try:
             asyncio.run(ws_loop())

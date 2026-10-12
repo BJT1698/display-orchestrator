@@ -164,7 +164,7 @@ class DisplayWebSocketHub {
   }
 
   handleHandshake(ws, msg) {
-    const { uuid, token, name, resolution, orientation, clientVersion } = msg;
+    const { uuid, token, name, resolution, clientVersion } = msg;
     if (!uuid) return;
 
     ws.displayUuid = uuid;
@@ -177,14 +177,14 @@ class DisplayWebSocketHub {
       db.run(
         `UPDATE displays 
          SET status = 'online', ip_address = ?, last_heartbeat = datetime('now'),
-             resolution = COALESCE(?, resolution), orientation = COALESCE(?, orientation),
+             resolution = COALESCE(?, resolution),
              updated_at = datetime('now')
          WHERE uuid = ?`,
         ws.clientIp,
         resolution || null,
-        orientation || null,
         uuid
       );
+      // Orientation is owned by the server (set from the dashboard); the ACK tells the screen which one to use
 
       ws.send(JSON.stringify({
         type: 'HANDSHAKE_ACK',
