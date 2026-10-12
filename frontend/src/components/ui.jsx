@@ -75,6 +75,16 @@ const TYPE_META = {
   html_snippet: { label: 'HTML', Icon: Code },
 };
 
+// "1.10.0" > "1.9.2"; tolerates a leading "v"
+export function compareVersions(a, b) {
+  const parse = (v) => String(v || '').replace(/^v/, '').split('.').map((n) => parseInt(n, 10) || 0);
+  const [x, y] = [parse(a), parse(b)];
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0);
+  }
+  return 0;
+}
+
 // How a screen is mounted; the screen's agent rotates its output to match
 export const ORIENTATIONS = {
   landscape: 'Landscape',

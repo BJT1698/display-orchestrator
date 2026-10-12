@@ -2,6 +2,7 @@ import express from 'express';
 import { db } from '../db/database.js';
 import { wsHub } from '../ws/websocketServer.js';
 import { requireAdmin, actor } from '../auth/auth.js';
+import { releaseService } from '../services/releaseService.js';
 
 export const displaysRouter = express.Router();
 
@@ -148,6 +149,25 @@ displaysRouter.delete('/:id', requireAdmin, (req, res) => {
   });
 
   res.json({ success: true, message: 'Display deleted successfully' });
+});
+
+// Update a display to the latest release (administrators only). Older tags are refused: the
+// displays would lose this very update mechanism by going back to a version without it.
+displaysRouter.post('/:id/update', requireAdmin, async (req, res) => {
+  const display = db.getOne('SELECT * FROM displays WHERE id = ? OR uuid = ?', req.params.id, req.params.id);
+  if (!display) return res.status(404).json({ success: false, error: 'Display not found' });
+
+  const latest = await releaseService.latest();
+  if (!latest) return res.status(503).json({ success: false, error: 'Could not reach GitHub to check the latest release.' });
+  const { version } = req.body || {};
+  if (version !== latest.tag) {
+    return res.status(400).json({ success: false, error: `Displays can only be updated to the latest release, ${latest.tag}.` });
+  }
+
+  const sent = wsHub.sendToDisplay(display.uuid, { type: 'UPDATE_SYSTEM', version: latest.tag });
+  if (!sent) return res.status(409).json({ success: false, error: `${display.name} is offline.` });
+  wsHub.log('command', actor(req), display.uuid, `Update of '${display.name}' to ${latest.tag} requested`);
+  res.json({ success: true });
 });
 
 // Dispatch real-time command to display

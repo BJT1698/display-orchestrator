@@ -45,6 +45,11 @@ export const usersApi = {
   remove: (id) => jsonCall(`${API_BASE}/users/${id}`, 'DELETE'),
 };
 
+export const updatesApi = {
+  latestRelease: () => jsonCall(`${API_BASE}/system/release`),
+  updateDisplay: (id, version) => jsonCall(`${API_BASE}/displays/${id}/update`, 'POST', { version }),
+};
+
 export const api = {
   // Displays
   async getDisplays() {

@@ -5,6 +5,7 @@
     ../../modules/client-appliance.nix
     ../../modules/first-boot-wizard.nix
     ../../modules/laptop.nix
+    ../../modules/updates.nix
   ];
 
   # Bootloader Configuration

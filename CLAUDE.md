@@ -72,6 +72,10 @@ viewer, sync it: `rsync -a --delete client/viewer/ nixos/client/viewer/ && cp cl
   server address, name) writing `/etc/signage/client.env`. Installer offers Wi-Fi too and copies
   the NetworkManager profiles into the installed system.
 - The agent can be overridden by `/etc/signage/main.py`; `VIEWER_DIR` points to the viewer.
+- `modules/updates.nix`: remote updates. The agent (kiosk user) writes a release tag to
+  `/var/lib/signage-update/inbox/request`; a root path unit runs `nixos-rebuild switch --flake
+  github:BJT1698/display-orchestrator/<tag>?dir=nixos#target-system` and writes `status.json`
+  next to it (root-owned dir). The server only allows the latest GitHub release.
 
 ## Design (dashboard and screens)
 
@@ -86,8 +90,10 @@ component classes (`btn`, `control`, `panel`, `data-table`, `segmented`, `tally`
 ## Workflow
 
 - Branch → PR to `main` → CI (`.github/workflows/build-iso.yml`) must be green → merge → tag
-  `vX.Y.Z` → the tag build publishes the ISO as a GitHub Release. Download with
+  `vX.Y.Z` → the tag build publishes the ISO as a GitHub Release. **`nixos/VERSION` must say
+  `X.Y.Z` before tagging** (bump it in the PR); the tag build fails otherwise. Download with
   `gh release download vX.Y.Z -D dist/vX.Y.Z` and check the `.sha256`. `dist/` is ignored.
+- `nixos/flake.lock` pins nixpkgs for CI, the ISO and remote updates; bump it on purpose only.
 - CI builds both `target-system` (what the installer builds on the device) and the ISO; Nix is
   not installed locally, so CI is the only build check for `nixos/`.
 - PRs only get CI when based on `main`; for stacked branches use `gh workflow run build-iso.yml --ref <branch>`.

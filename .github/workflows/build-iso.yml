@@ -27,6 +27,17 @@ jobs:
             experimental-features = nix-command flakes
             accept-flake-config = true
 
+      - name: Check release version
+        if: startsWith(github.ref, 'refs/tags/v')
+        # Displays report nixos/VERSION; a release tag must match it
+        run: |
+          expected="${GITHUB_REF_NAME#v}"
+          actual="$(tr -d '[:space:]' < nixos/VERSION)"
+          if [ "$expected" != "$actual" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} but nixos/VERSION says ${actual}. Bump nixos/VERSION before tagging."
+            exit 1
+          fi
+
       - name: Validate Nix Flake
         working-directory: nixos
         run: nix flake check

@@ -15,6 +15,7 @@ import urllib.parse
 import threading
 import subprocess
 import shutil
+import re
 from pathlib import Path
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 
@@ -587,6 +588,37 @@ async def ws_loop():
             await asyncio.sleep(min(backoff, 30))
             backoff = int(backoff * 1.5)
 
+# --- Updates from the dashboard ------------------------------------------------
+# The image's signage-update service (root) watches this inbox; the agent only asks.
+
+UPDATE_DIR = Path(os.environ.get("SIGNAGE_UPDATE_DIR", "/var/lib/signage-update"))
+UPDATE_INBOX = UPDATE_DIR / "inbox"
+RELEASE_TAG = re.compile(r"^v\d+\.\d+\.\d+$")
+
+def installed_version():
+    try:
+        return Path("/etc/signage/version").read_text().strip() or None
+    except OSError:
+        return None
+
+def update_status():
+    try:
+        return json.loads((UPDATE_DIR / "status.json").read_text())
+    except (OSError, ValueError):
+        return None
+
+def request_update(tag):
+    if not RELEASE_TAG.match(str(tag or "")):
+        return False
+    try:
+        tmp = UPDATE_INBOX / ".request.tmp"
+        tmp.write_text(tag + "\n")
+        tmp.replace(UPDATE_INBOX / "request")  # atomic, so the watcher never reads half a tag
+        return True
+    except OSError as e:
+        print(f"Update request failed: {e}", file=sys.stderr)
+        return False
+
 def heartbeat_message():
     uptime_sec = int(time.time() - start_time)
     return {
@@ -598,6 +630,9 @@ def heartbeat_message():
             "platform": sys.platform,
             # Lets the dashboard show whether the screen is blanked (its on/off control)
             "blank": bool(overrides.get("blank")),
+            "version": installed_version(),
+            "update": update_status(),
+            "updatesSupported": UPDATE_INBOX.is_dir() and os.access(UPDATE_INBOX, os.W_OK),
         },
     }
 
@@ -668,6 +703,12 @@ async def handle_ws_message(ws, msg):
     elif mtype == "SET_ORIENTATION":
         print(f"↻ Orientation set to {msg.get('orientation')}")
         set_orientation(msg.get("orientation"))
+
+    elif mtype == "UPDATE_SYSTEM":
+        tag = msg.get("version")
+        print(f"⬆ Update to {tag} requested")
+        request_update(tag)
+        await ws.send(json.dumps(heartbeat_message()))
 
     elif mtype == "REMOTE_START":
         remote.start(ws)

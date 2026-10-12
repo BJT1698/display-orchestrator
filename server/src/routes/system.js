@@ -5,6 +5,7 @@ import { config } from '../config.js';
 import { wsHub } from '../ws/websocketServer.js';
 import { mediaService } from '../services/mediaService.js';
 import { requireAdmin } from '../auth/auth.js';
+import { releaseService } from '../services/releaseService.js';
 
 export const systemRouter = express.Router();
 
@@ -130,4 +131,10 @@ systemRouter.put('/groups/:id', (req, res) => {
 systemRouter.delete('/groups/:id', (req, res) => {
   db.run('DELETE FROM display_groups WHERE id = ?', req.params.id);
   res.json({ success: true, message: 'Group deleted' });
+});
+
+// Latest display image release, for the dashboard's update control
+systemRouter.get('/release', async (req, res) => {
+  const latest = await releaseService.latest({ force: req.query.refresh === '1' });
+  res.json({ success: true, data: latest });
 });
