@@ -1,5 +1,5 @@
 import React from 'react';
-import { KeyRound, Plus } from 'lucide-react';
+import { KeyRound, Plus, Power, MousePointerClick, MonitorUp, Globe } from 'lucide-react';
 import { EmptyState, Tally, formatDuration, formatTime, isPortrait } from '../components/ui';
 
 function thumbnailAge(timestamp) {
@@ -9,44 +9,51 @@ function thumbnailAge(timestamp) {
   return minutes < 60 ? `${minutes} min ago` : `${Math.round(minutes / 60)} h ago`;
 }
 
-function ScreenTile({ display, thumbnail, onSelect }) {
+function ScreenTile({ display, thumbnail, actions }) {
   const isOnline = display.status === 'online';
+  const isBlank = Boolean(display.metrics?.blank);
   const shot = isOnline ? thumbnail : null;
   // The picture's own shape is the truth; fall back to the configured orientation
   const portrait = shot?.width && shot?.height ? shot.height > shot.width : isPortrait(display.orientation);
   const playlist = display.current_playlist_name;
 
   return (
-    <button
-      type="button"
-      onClick={() => onSelect(display)}
-      className="group text-left rounded-md focus-visible:outline-offset-4"
-      title={isOnline ? `Send a web page to ${display.name}` : `${display.name} is offline`}
-    >
-      {/* Monitor bezel: the tally strip on top carries the on-air state */}
-      <div className="relative aspect-video rounded-sm bg-raised border border-line group-hover:border-line-strong transition-colors overflow-hidden">
-        <div className={`absolute inset-x-0 top-0 h-1 z-10 ${isOnline ? 'bg-live' : 'bg-line-strong'}`} />
-        <div className={`absolute bg-black overflow-hidden ${portrait ? 'inset-y-3 left-1/2 -translate-x-1/2 aspect-[9/16]' : 'inset-[6px] top-[10px]'}`}>
-          {shot ? (
-            <img
-              src={`data:image/jpeg;base64,${shot.imageBase64}`}
-              alt={`What ${display.name} is showing`}
-              className="absolute inset-0 w-full h-full object-cover"
-            />
-          ) : isOnline ? (
-            <div className="absolute inset-0 flex flex-col justify-end p-3">
-              <div className={`display font-semibold text-ink leading-tight ${portrait ? 'text-sm' : 'text-lg'} line-clamp-2`}>
-                {playlist || 'Standby'}
+    <div className="min-w-0">
+      {/* Monitor bezel: the tally strip on top carries the on-air state; clicking the screen takes control of it */}
+      <button
+        type="button"
+        onClick={() => actions.onRemoteControl(display)}
+        disabled={!isOnline}
+        className="group block w-full text-left rounded-md focus-visible:outline-offset-4 disabled:cursor-default"
+        title={isOnline ? `Control the browser on ${display.name}` : `${display.name} is offline`}
+      >
+        <div className="relative aspect-video rounded-sm bg-raised border border-line group-enabled:group-hover:border-line-strong transition-colors overflow-hidden">
+          <div className={`absolute inset-x-0 top-0 h-1 z-10 ${!isOnline ? 'bg-line-strong' : isBlank ? 'bg-caution' : 'bg-live'}`} />
+          <div className={`absolute bg-black overflow-hidden ${portrait ? 'inset-y-3 left-1/2 -translate-x-1/2 aspect-[9/16]' : 'inset-[6px] top-[10px]'}`}>
+            {shot ? (
+              <img
+                src={`data:image/jpeg;base64,${shot.imageBase64}`}
+                alt={`What ${display.name} is showing`}
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+            ) : isOnline ? (
+              <div className="absolute inset-0 flex flex-col justify-end p-3">
+                <div className={`display font-semibold text-ink leading-tight ${portrait ? 'text-sm' : 'text-lg'} line-clamp-2`}>
+                  {playlist || 'Standby'}
+                </div>
+                <div className="text-xs text-muted mt-0.5">
+                  {playlist ? 'Playing' : 'No playlist assigned'}
+                </div>
               </div>
-              <div className="text-xs text-muted mt-0.5">
-                {playlist ? 'Playing' : 'No playlist assigned'}
-              </div>
-            </div>
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center text-xs text-faint">No signal</div>
-          )}
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center text-xs text-faint">No signal</div>
+            )}
+            {isOnline && isBlank && (
+              <div className="absolute inset-0 flex items-center justify-center text-xs text-muted bg-black/80">Screen off</div>
+            )}
+          </div>
         </div>
-      </div>
+      </button>
 
       <div className="mt-2.5 flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -60,7 +67,31 @@ function ScreenTile({ display, thumbnail, onSelect }) {
           {shot && <div>{thumbnailAge(shot.timestamp)}</div>}
         </div>
       </div>
-    </button>
+
+      {/* Quick controls, always visible so they work on touch screens too */}
+      <div className="mt-2 flex items-center gap-1 border-t border-line pt-2" role="group" aria-label={`Controls for ${display.name}`}>
+        <button
+          onClick={() => actions.onSetBlank(display, !isBlank)}
+          disabled={!isOnline}
+          aria-pressed={!isBlank}
+          className={`btn btn-sm ${isBlank ? '' : 'btn-quiet'} min-w-[5.5rem] justify-start`}
+          title={isBlank ? 'Turn the screen back on' : 'Turn the screen off (black)'}
+        >
+          <Power className={`w-4 h-4 ${isOnline && !isBlank ? 'text-live' : isBlank ? 'text-caution' : ''}`} />
+          {isBlank ? 'Turn on' : 'Turn off'}
+        </button>
+        <span className="flex-1" />
+        <button onClick={() => actions.onRemoteControl(display)} disabled={!isOnline} className="btn-icon" title="Control the browser" aria-label={`Control the browser on ${display.name}`}>
+          <MousePointerClick className="w-4 h-4" />
+        </button>
+        <button onClick={() => actions.onShareScreen(display)} disabled={!isOnline} className="btn-icon" title="Share your screen" aria-label={`Share your screen to ${display.name}`}>
+          <MonitorUp className="w-4 h-4" />
+        </button>
+        <button onClick={() => actions.onPushUrl(display)} disabled={!isOnline} className="btn-icon" title="Show a web page for a while" aria-label={`Show a web page on ${display.name}`}>
+          <Globe className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -85,6 +116,7 @@ export function DashboardView({
   onOpenPairing,
   isAdmin,
   thumbnails = {},
+  actions,
   onSelectDisplay,
   onNavigate
 }) {
@@ -154,7 +186,7 @@ export function DashboardView({
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-x-6 gap-y-8">
             {sortedDisplays.map((display) => (
-              <ScreenTile key={display.id} display={display} thumbnail={thumbnails[display.uuid]} onSelect={onSelectDisplay} />
+              <ScreenTile key={display.id} display={display} thumbnail={thumbnails[display.uuid]} actions={actions} />
             ))}
           </div>
         )}

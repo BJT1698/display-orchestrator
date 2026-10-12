@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RefreshCw, MoonStar, Sun, Globe, Trash2, Plus, MousePointerClick, MonitorUp } from 'lucide-react';
+import { RefreshCw, Power, Globe, Trash2, Plus, MousePointerClick, MonitorUp } from 'lucide-react';
 import { api } from '../services/api';
 import { PageHeader, EmptyState, Tally, formatDuration, ORIENTATIONS } from '../components/ui';
 
@@ -12,7 +12,8 @@ export function DisplaysView({
   isAdmin,
   onPushUrl,
   onRemoteControl,
-  onShareScreen
+  onShareScreen,
+  onSetBlank
 }) {
   const [selectedGroup, setSelectedGroup] = useState('all');
   const [loadingAction, setLoadingAction] = useState(null);
@@ -201,22 +202,14 @@ export function DisplaysView({
                           <RefreshCw className={`w-4 h-4 ${busy('reload') ? 'animate-spin' : ''}`} />
                         </button>
                         <button
-                          onClick={() => handleCommand(display.id, 'blank', { state: true })}
-                          disabled={!isOnline || busy('blank')}
+                          onClick={() => onSetBlank(display, !display.metrics?.blank)}
+                          disabled={!isOnline}
                           className="btn-icon"
-                          title="Blank the screen"
-                          aria-label={`Blank ${display.name}`}
+                          aria-pressed={!display.metrics?.blank}
+                          title={display.metrics?.blank ? 'Turn the screen back on' : 'Turn the screen off (black)'}
+                          aria-label={`${display.metrics?.blank ? 'Turn on' : 'Turn off'} ${display.name}`}
                         >
-                          <MoonStar className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleCommand(display.id, 'blank', { state: false })}
-                          disabled={!isOnline || busy('blank')}
-                          className="btn-icon"
-                          title="Turn the screen back on"
-                          aria-label={`Turn ${display.name} back on`}
-                        >
-                          <Sun className="w-4 h-4" />
+                          <Power className={`w-4 h-4 ${!isOnline ? '' : display.metrics?.blank ? 'text-caution' : 'text-live'}`} />
                         </button>
                         {isAdmin && (
                           <>

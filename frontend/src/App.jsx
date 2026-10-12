@@ -239,6 +239,20 @@ function Console({ user, onSignOut }) {
 
   const cast = useScreenCast({ sendWs, subscribe: subscribeRemote, wsConnected });
 
+  // Screen on/off from the display wall: show the new state at once, the screen confirms it
+  // in its next heartbeat; put it back if the command fails
+  const setBlank = useCallback(async (display, blank) => {
+    const apply = (value) => setDisplays((prev) => prev.map((d) =>
+      d.id === display.id ? { ...d, metrics: { ...(d.metrics || {}), blank: value } } : d));
+    apply(blank);
+    try {
+      await api.sendCommand(display.id, 'blank', { state: blank });
+    } catch (err) {
+      apply(!blank);
+      alert('Could not change the screen: ' + err.message);
+    }
+  }, []);
+
   const navItems = [
     { id: 'dashboard', label: 'Overview', Icon: LayoutGrid },
     { id: 'displays', label: 'Displays', Icon: Tv, count: displays.length },
@@ -335,8 +349,11 @@ function Console({ user, onSignOut }) {
               thumbnails={thumbnails}
               onOpenPairing={() => setIsPairingOpen(true)}
               onOpenEmergency={() => setIsEmergencyOpen(true)}
-              onSelectDisplay={(d) => {
-                setPushUrlDisplay(d);
+              actions={{
+                onRemoteControl: (d) => setRemoteDisplay(d),
+                onShareScreen: (d) => cast.start(d),
+                onPushUrl: (d) => setPushUrlDisplay(d),
+                onSetBlank: setBlank,
               }}
               onNavigate={(tab) => setCurrentTab(tab)}
             />
@@ -353,6 +370,7 @@ function Console({ user, onSignOut }) {
               onPushUrl={(d) => setPushUrlDisplay(d)}
               onRemoteControl={(d) => setRemoteDisplay(d)}
               onShareScreen={(d) => cast.start(d)}
+              onSetBlank={setBlank}
             />
           )}
 
