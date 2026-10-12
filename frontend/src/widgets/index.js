@@ -1,4 +1,5 @@
 import { clockWidget } from './clock';
+import { nightClockWidget } from './nightClock';
 import { countdownWidget } from './countdown';
 import { qrWidget } from './qr';
 import { weatherWidget } from './weather';
@@ -13,6 +14,6 @@ export function readWidget(html) {
 }
 
 // Order shown in the "Add widget" gallery
-export const WIDGETS = [announcementWidget, weatherWidget, clockWidget, countdownWidget, qrWidget];
+export const WIDGETS = [announcementWidget, weatherWidget, clockWidget, nightClockWidget, countdownWidget, qrWidget];
 
 export const widgetByType = (type) => WIDGETS.find((w) => w.type === type) || null;

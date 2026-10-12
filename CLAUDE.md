@@ -86,7 +86,7 @@ viewer, sync it: `rsync -a --delete client/viewer/ nixos/client/viewer/ && cp cl
 ## Widgets
 
 `frontend/src/widgets/`: announcement, weather (Open-Meteo, fetched by the screen every 15 min,
-last answer kept in localStorage), clock, countdown, QR (SVG drawn at authoring time). Each widget
+last answer kept in localStorage), clock, night clock (black, dim, slow drift against burn-in), countdown, QR (SVG drawn at authoring time). Each widget
 renders a self-contained HTML snippet saved as an ordinary `html_snippet` media; its settings ride
 in a leading `<!-- signage-widget:<base64 JSON> -->` comment so the dashboard can reopen it.
 Announcement pictures are embedded once (data URL in the page, a placeholder in the settings).
