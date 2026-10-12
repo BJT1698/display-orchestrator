@@ -24,3 +24,6 @@ result-*
 .DS_Store
 vm/
 *.qcow2
+
+# Local deployment notes for Claude Code (infrastructure details, never commit)
+CLAUDE.local.md
