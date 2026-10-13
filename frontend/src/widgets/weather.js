@@ -88,7 +88,10 @@ function layer(scene, day, intensity){
 
   if (scene === 'clear' || scene === 'partly') {
     if (day) {
-      var sun = document.createElement('div'); sun.className = 'sun'; l.appendChild(sun);
+      // Glare over the sky, then a white disc with a warm corona and faint shimmering rays
+      var sun = document.createElement('div'); sun.className = 'sun';
+      sun.innerHTML = '<i class="sun-glare"></i><i class="sun-rays"></i><i class="sun-rays sun-rays2"></i><i class="sun-disc"></i>';
+      l.appendChild(sun);
     } else {
       var stars = document.createElement('div'); stars.className = 'stars';
       for (var i = 0; i < 90; i++) {
@@ -273,19 +276,28 @@ export const weatherWidget = {
         #scene,.sc,#fx{position:absolute;inset:0}
         .sc{transition:opacity 3s ease;overflow:hidden}
         #fx{width:100%;height:100%;pointer-events:none}
-        .sun{position:absolute;right:8vmin;top:6vmin;width:30vmin;height:30vmin;border-radius:50%;
-          background:radial-gradient(circle,#FFF6C8 0 22%,rgba(255,214,90,.55) 34%,rgba(255,214,90,.18) 52%,transparent 70%);
-          animation:glow 8s ease-in-out infinite alternate}
-        .sun::after{content:'';position:absolute;inset:-35%;border-radius:50%;
-          background:repeating-conic-gradient(rgba(255,240,180,.16) 0 6deg,transparent 6deg 22deg);
-          -webkit-mask:radial-gradient(circle,transparent 26%,#000 32%,transparent 70%);
-          mask:radial-gradient(circle,transparent 26%,#000 32%,transparent 70%);
-          animation:spin 90s linear infinite}
+        .sun{position:absolute;right:14vmin;top:12vmin;width:0;height:0}
+        .sun i{position:absolute;left:0;top:0;border-radius:50%;transform:translate(-50%,-50%)}
+        .sun-glare{width:120vmin;height:120vmin;
+          background:radial-gradient(circle,rgba(255,255,248,.80) 0%,rgba(255,253,238,.50) 5%,rgba(255,250,232,.24) 13%,rgba(255,255,250,.09) 27%,rgba(255,255,255,.03) 40%,transparent 56%);
+          mix-blend-mode:screen}
+        .sun-disc{width:15vmin;height:15vmin;
+          background:radial-gradient(circle,#FFFFFF 0 44%,rgba(255,255,252,.96) 50%,rgba(255,254,242,.70) 57%,rgba(255,252,232,.32) 66%,rgba(255,250,228,.10) 76%,transparent 86%);
+          mix-blend-mode:screen}
+        .sun-rays{width:70vmin;height:70vmin;will-change:transform;
+          background:repeating-conic-gradient(from 0deg,rgba(255,250,232,.11) 0deg 1.2deg,transparent 1.2deg 9deg);
+          -webkit-mask:radial-gradient(circle,transparent 8%,#000 12%,rgba(0,0,0,.35) 30%,transparent 50%);
+          mask:radial-gradient(circle,transparent 8%,#000 12%,rgba(0,0,0,.35) 30%,transparent 50%);
+          animation:spinc 240s linear infinite}
+        .sun-rays2{width:58vmin;height:58vmin;opacity:.8;
+          background:repeating-conic-gradient(from 4deg,rgba(255,250,232,.09) 0deg 0.8deg,transparent 0.8deg 13deg);
+          animation:spinc 170s linear infinite reverse}
+        @keyframes spinc{from{transform:translate(-50%,-50%) rotate(0)}to{transform:translate(-50%,-50%) rotate(360deg)}}
         .moon{position:absolute;right:12vmin;top:9vmin;width:13vmin;height:13vmin;border-radius:50%;
           background:radial-gradient(circle at 35% 35%,#FDFDF5,#D9DCE6 70%);
           box-shadow:0 0 6vmin 1vmin rgba(220,228,255,.18)}
         .stars i{position:absolute;border-radius:50%;background:#FFFFFF;animation:twinkle ease-in-out infinite alternate}
-        .cl{position:absolute;left:0;animation:drift linear infinite;will-change:transform}
+        .cl{position:absolute;left:0;z-index:1;animation:drift linear infinite;will-change:transform}
         .cl i{position:absolute;border-radius:50%}
         .fog{position:absolute;left:-50%;width:200%;height:34%;margin-top:-8%;
           background:linear-gradient(180deg,transparent,rgba(255,255,255,.22) 50%,transparent);
@@ -294,7 +306,6 @@ export const weatherWidget = {
         @keyframes drift{from{transform:translateX(-80vmax)}to{transform:translateX(130vw)}}
         @keyframes fogdrift{from{transform:translateX(-12%)}to{transform:translateX(12%)}}
         @keyframes spin{to{transform:rotate(360deg)}}
-        @keyframes glow{from{transform:scale(.96)}to{transform:scale(1.05)}}
         @keyframes twinkle{from{opacity:.2}to{opacity:1}}
         @keyframes flash{0%,61%,63.5%,66%,100%{opacity:0}62%{opacity:.55}64.5%{opacity:.35}}
         .ic-rays{transform-origin:24px 24px;animation:spin 40s linear infinite}
