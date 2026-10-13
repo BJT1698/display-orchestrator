@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
-import { mediaApi } from '../services/api';
+import { mediaApi, calendarsApi } from '../services/api';
 import { WIDGETS, widgetByType, readWidget } from '../widgets';
 import { searchPlaces } from '../widgets/weather';
 import { imageToDataUrl } from '../widgets/announcement';
@@ -181,6 +181,8 @@ function Field({ field, value, config, onChange, onError }) {
       return <ImageField id={id} label={label} hint={hint} value={value} onChange={(v) => onChange(field.key, v)} onError={onError} />;
     case 'place':
       return <PlaceField id={id} label={label} hint={hint} config={config} onChange={onChange} />;
+    case 'calendar':
+      return <CalendarField id={id} label={label} config={config} onChange={onChange} />;
     default:
       return <div>{label}<input id={id} type={field.type === 'url' ? 'url' : 'text'} className="control" placeholder={field.placeholder} value={value || ''} onChange={(e) => onChange(field.key, e.target.value)} />{hint}</div>;
   }
@@ -262,6 +264,91 @@ function PlaceField({ id, label, hint, config, onChange }) {
       {state === 'error' && <p className="field-hint">Place search is not available right now.</p>}
       {chosen && !results.length && <p className="field-hint">{config.place} ({config.latitude}, {config.longitude})</p>}
       {!chosen && hint}
+    </div>
+  );
+}
+
+// Published calendars live on the server: here only their names. Adding one checks the link there.
+function CalendarField({ id, label, config, onChange }) {
+  const [calendars, setCalendars] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newUrl, setNewUrl] = useState('');
+  const [state, setState] = useState({ busy: false, error: '' });
+
+  useEffect(() => {
+    calendarsApi.list().then((list) => {
+      setCalendars(list);
+      if (!list.length) setAdding(true);
+    }).catch((err) => setState({ busy: false, error: err.message }));
+  }, []);
+
+  const choose = (calendar) => {
+    onChange('calendarId', calendar?.id || '');
+    onChange('calendarName', calendar?.name || '');
+  };
+
+  const add = async () => {
+    setState({ busy: true, error: '' });
+    try {
+      const calendar = await calendarsApi.add(newName, newUrl);
+      setCalendars((list) => [...(list || []), calendar]);
+      choose(calendar);
+      setAdding(false);
+      setNewName('');
+      setNewUrl('');
+      setState({ busy: false, error: '' });
+    } catch (err) {
+      setState({ busy: false, error: err.message });
+    }
+  };
+
+  const remove = async () => {
+    const calendar = calendars.find((c) => c.id === config.calendarId);
+    if (!calendar || !confirm(`Remove the calendar "${calendar.name}"? Widgets that use it will stop showing events.`)) return;
+    try {
+      await calendarsApi.remove(calendar.id);
+      setCalendars((list) => list.filter((c) => c.id !== calendar.id));
+      choose(null);
+    } catch (err) {
+      setState({ busy: false, error: err.message });
+    }
+  };
+
+  return (
+    <div>
+      {label}
+      {calendars && calendars.length > 0 && (
+        <div className="flex gap-2">
+          <select id={id} className="control" value={config.calendarId || ''}
+            onChange={(e) => choose(calendars.find((c) => c.id === e.target.value))}>
+            <option value="">Choose a calendar</option>
+            {calendars.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+          {config.calendarId && <button type="button" className="btn btn-quiet" onClick={remove}>Remove</button>}
+        </div>
+      )}
+      {!adding ? (
+        <button type="button" className="mt-2 text-sm text-muted hover:text-ink underline-offset-4 hover:underline" onClick={() => setAdding(true)}>
+          Add a published calendar
+        </button>
+      ) : (
+        <div className="mt-2 p-3 rounded border border-line space-y-2">
+          <input className="control" placeholder="Name, e.g. Sala riunioni" value={newName} maxLength={60} onChange={(e) => setNewName(e.target.value)} />
+          <input className="control" type="url" placeholder="ICS link from Outlook, https://outlook.office365.com/…/calendar.ics" value={newUrl} onChange={(e) => setNewUrl(e.target.value)} />
+          <p className="field-hint">
+            In Outlook on the web: Settings, Calendar, Shared calendars, Publish a calendar, then copy the ICS link.
+            The link stays on the signage server; screens only receive the events.
+          </p>
+          <div className="flex gap-2">
+            <button type="button" className="btn btn-primary btn-sm" disabled={state.busy || !newName.trim() || !newUrl.trim()} onClick={add}>
+              {state.busy ? 'Checking the link' : 'Add calendar'}
+            </button>
+            {calendars?.length > 0 && <button type="button" className="btn btn-quiet btn-sm" onClick={() => setAdding(false)}>Cancel</button>}
+          </div>
+        </div>
+      )}
+      {state.error && <p className="field-hint text-alert">{state.error}</p>}
     </div>
   );
 }

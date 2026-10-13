@@ -51,6 +51,12 @@ export const mediaApi = {
     jsonCall(`${API_BASE}/media/html`, 'POST', { name, content, durationSeconds }),
 };
 
+export const calendarsApi = {
+  list: () => jsonCall(`${API_BASE}/calendars`),
+  add: (name, url) => jsonCall(`${API_BASE}/calendars`, 'POST', { name, url }),
+  remove: (id) => jsonCall(`${API_BASE}/calendars/${id}`, 'DELETE'),
+};
+
 export const afterHoursApi = {
   get: () => jsonCall(`${API_BASE}/system/after-hours`),
   save: (payload) => jsonCall(`${API_BASE}/system/after-hours`, 'PUT', payload),

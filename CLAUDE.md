@@ -119,9 +119,17 @@ viewer, sync it: `rsync -a --delete client/viewer/ nixos/client/viewer/ && cp cl
 `frontend/src/widgets/`: announcement, weather (Open-Meteo, fetched by the screen every 15 min,
 last answer kept in localStorage; animated scene per weather and day/night: sky gradient, CSS
 clouds/sun/stars, one canvas for rain and snow, crossfade on change; `window.signageWeatherPreview(code, isDay)`
-shows any scene for tests), clock, night clock (black, dim, slow drift against burn-in), countdown, QR (SVG drawn at authoring time). Each widget
+shows any scene for tests), clock, night clock (black, dim, slow drift against burn-in), calendar (see below), countdown, QR (SVG drawn at authoring time). Each widget
 renders a self-contained HTML snippet saved as an ordinary `html_snippet` media; its settings ride
 in a leading `<!-- signage-widget:<base64 JSON> -->` comment so the dashboard can reopen it.
+**Calendar widget**: calendars published as ICS (Outlook "Publish a calendar") are stored on the
+server only (`settings` key `calendars`, `services/calendarService.js`, `node-ical` expands
+recurrences and Outlook time zones; private events shown as "Privato"). Signed-in users manage them
+at `/api/calendars` (the link never comes back out); screens read `GET /calendar/<24-hex id>.json`
+(no session, CORS *, server caches each ICS 5 min and keeps the last good copy). The widget tries
+its own origin first (dashboard preview), then the server address from the agent's
+`/api/agent/state` (on displays the snippet runs on the agent's origin). **ICS links are secrets:
+never commit them.**
 Announcement pictures are embedded once (data URL in the page, a placeholder in the settings).
 Screen text is Italian; sizes in vmin. Editing a media re-syncs all displays, and the agent's
 playlist `revision` hash makes the viewer restart playback when any item changed.

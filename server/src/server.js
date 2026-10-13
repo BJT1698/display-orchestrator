@@ -12,6 +12,7 @@ import { schedulesRouter } from './routes/schedules.js';
 import { systemRouter } from './routes/system.js';
 import { authRouter } from './routes/auth.js';
 import { usersRouter } from './routes/users.js';
+import { calendarsRouter, calendarFeed } from './routes/calendars.js';
 import { attachUser, requireUser, requireAdmin, ensureSetupCode, purgeExpiredSessions } from './auth/auth.js';
 
 // Initialize Database on startup
@@ -51,6 +52,7 @@ app.use('/api/media', mediaRouter);
 app.use('/api/playlists', playlistsRouter);
 app.use('/api/schedules', schedulesRouter);
 app.use('/api/system', systemRouter);
+app.use('/api/calendars', calendarsRouter);
 
 // Widget previews run in sandboxed iframes (opaque origin) and load these fonts cross-origin
 app.use('/fonts', (req, res, next) => {
@@ -60,6 +62,9 @@ app.use('/fonts', (req, res, next) => {
 
 // Serve frontend SPA
 app.use(express.static(config.publicDir));
+
+// Calendar events for screens (by random id, no session)
+app.use('/calendar', calendarFeed);
 
 // Public page for guests who ask to share their screen (approval happens in the dashboard)
 app.get('/cast', (req, res) => res.sendFile(path.join(config.publicDir, 'cast.html')));
