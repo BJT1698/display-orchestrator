@@ -21,7 +21,10 @@ function newCastId() {
 }
 
 // One screen-share session at a time, kept at app level so it survives navigation
-export function useScreenCast({ sendWs, subscribe, wsConnected }) {
+// iceServers: TURN relay from the server, for screens on a network the browser cannot reach directly
+export function useScreenCast({ sendWs, subscribe, wsConnected, iceServers = [] }) {
+  const iceRef = useRef(iceServers);
+  iceRef.current = iceServers;
   const [session, setSession] = useState(null); // { uuid, name, status }
   const ref = useRef(null); // { castId, uuid, pc, stream, timer }
 
@@ -73,7 +76,7 @@ export function useScreenCast({ sendWs, subscribe, wsConnected }) {
     }
 
     const castId = newCastId();
-    const pc = new RTCPeerConnection({ iceServers: [] });
+    const pc = new RTCPeerConnection({ iceServers: iceRef.current || [] });
     ref.current = { castId, uuid: display.uuid, pc, stream, timer: null };
 
     stream.getTracks().forEach((track) => {
@@ -101,11 +104,12 @@ export function useScreenCast({ sendWs, subscribe, wsConnected }) {
 
     setStatus('connecting');
     await pc.setLocalDescription(await pc.createOffer());
-    // Send one complete offer; the screen answers through its agent, which polls
+    // Send one complete offer; the screen answers through its agent, which polls. A relay on an
+    // address this browser cannot reach never completes gathering, so stop waiting after a while
     await new Promise((resolve) => {
       if (pc.iceGatheringState === 'complete') return resolve();
       pc.addEventListener('icegatheringstatechange', () => pc.iceGatheringState === 'complete' && resolve());
-      setTimeout(resolve, 3000);
+      setTimeout(resolve, iceRef.current?.length ? 5000 : 3000);
     });
     if (ref.current?.castId !== castId) return;
 

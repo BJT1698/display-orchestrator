@@ -66,6 +66,7 @@ function Console({ user, onSignOut }) {
   const [displays, setDisplays] = useState([]);
   const [pendingPairings, setPendingPairings] = useState([]);
   const [guestRequests, setGuestRequests] = useState([]);
+  const [iceServers, setIceServers] = useState([]);
   const [playlists, setPlaylists] = useState([]);
   const [mediaList, setMediaList] = useState([]);
   const [schedules, setSchedules] = useState([]);
@@ -194,6 +195,7 @@ function Console({ user, onSignOut }) {
           if (msg.data.displays) setDisplays(msg.data.displays);
           if (msg.data.pendingPairings) setPendingPairings(msg.data.pendingPairings);
           setGuestRequests(msg.data.guestRequests || []);
+          setIceServers(msg.data.iceServers || []);
           break;
 
         case 'GUEST_REQUESTS':
@@ -255,7 +257,7 @@ function Console({ user, onSignOut }) {
     };
   }, [loadData]);
 
-  const cast = useScreenCast({ sendWs, subscribe: subscribeRemote, wsConnected });
+  const cast = useScreenCast({ sendWs, subscribe: subscribeRemote, wsConnected, iceServers });
 
   // Screen on/off from the display wall: show the new state at once, the screen confirms it
   // in its next heartbeat; put it back if the command fails

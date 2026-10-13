@@ -94,7 +94,7 @@ const formatClock = (iso) => new Date(iso).toLocaleTimeString([], { hour: '2-dig
 
 function GuestCastPage() {
   const guest = useGuestSocket();
-  const cast = useScreenCast({ sendWs: guest.send, subscribe: guest.subscribe, wsConnected: guest.connected });
+  const cast = useScreenCast({ sendWs: guest.send, subscribe: guest.subscribe, wsConnected: guest.connected, iceServers: guest.request.iceServers });
   const [name, setName] = useState(() => {
     try {
       return localStorage.getItem('guest-cast-name') || '';
