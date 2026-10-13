@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Same palette as the dashboard: graphite structure, color only for state -->
+<resources>
+    <color name="ground">#16181C</color>
+    <color name="surface">#1E2126</color>
+    <color name="raised">#262A30</color>
+    <color name="line">#33383F</color>
+    <color name="line_strong">#454B53</color>
+    <color name="ink">#E6E8EB</color>
+    <color name="muted">#9AA1AB</color>
+    <color name="faint">#6B727C</color>
+    <color name="live">#3FB37F</color>
+    <color name="caution">#D9A441</color>
+    <color name="alert">#E5484D</color>
+</resources>

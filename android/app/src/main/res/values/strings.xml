@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Signage Cast</string>
+    <string name="brand">Signage Control</string>
+    <string name="title">Share your screen</string>
+    <string name="server_label">Signage server</string>
+    <string name="server_hint">signage.example.lan or 192.168.1.10:8080</string>
+    <string name="connect">Connect</string>
+    <string name="connecting">Connecting…</string>
+    <string name="change">Change</string>
+    <string name="connected_to">Connected to %1$s</string>
+    <string name="reconnecting">Connection lost, trying again…</string>
+    <string name="intro">Ask to show your phone screen on one of the office displays. Someone at the signage console approves the request, then you start sharing.</string>
+    <string name="name_label">Your name</string>
+    <string name="name_hint">Mario Rossi</string>
+    <string name="screen_label">Screen</string>
+    <string name="operator_chooses">Let the operator choose</string>
+    <string name="offline_suffix">%1$s (offline)</string>
+    <string name="ask">Ask to share</string>
+    <string name="waiting">Waiting for approval</string>
+    <string name="waiting_hint">Tell this code to the person approving the request, so they know it is you. Keep the app open until then.</string>
+    <string name="approved_for">Approved for %1$s until %2$s</string>
+    <string name="start_sharing">Start sharing</string>
+    <string name="share_again">Share again</string>
+    <string name="stop_sharing">Stop sharing</string>
+    <string name="approved_hint">Android asks what to share: choose the entire screen to show other apps. Sharing goes on in the background; stop it here or from the notification.</string>
+    <string name="channel_sharing">Screen sharing</string>
+    <string name="notification_title">Sharing to %1$s</string>
+    <string name="notification_text">Your screen is on the display. Tap Stop sharing to end.</string>
+    <string name="a_screen">a display</string>
+    <string name="cast_connecting">Connecting to the screen…</string>
+    <string name="cast_connected">You are on screen.</string>
+    <string name="cast_disconnected">Connection unstable, trying to recover…</string>
+    <string name="cast_failed">The screen could not receive the stream. Try again.</string>
+    <string name="cast_offline">The screen is offline.</string>
+    <string name="cast_replaced">Someone else took over this screen.</string>
+    <string name="cast_timeout">The screen did not answer. Try again.</string>
+    <string name="cast_lost">The connection to the server dropped.</string>
+    <string name="ended_rejected">The request was declined.</string>
+    <string name="ended_expired">The time granted for sharing is over.</string>
+    <string name="ended_stopped">An operator stopped the sharing.</string>
+    <string name="ended_lapsed">Nobody answered the request in 10 minutes.</string>
+    <string name="ended_busy">Too many requests right now. Try again in a few minutes.</string>
+    <string name="ended_lost">The connection to the server dropped. Ask again.</string>
+    <string name="bad_address">That server address is not valid.</string>
+    <string name="new_request">New request</string>
+</resources>

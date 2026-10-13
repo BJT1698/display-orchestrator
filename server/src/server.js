@@ -1,6 +1,7 @@
 import express from 'express';
 import http from 'node:http';
 import path from 'node:path';
+import fs from 'node:fs';
 import { config } from './config.js';
 import { getDb } from './db/database.js';
 import { wsHub } from './ws/websocketServer.js';
@@ -62,6 +63,17 @@ app.use(express.static(config.publicDir));
 
 // Public page for guests who ask to share their screen (approval happens in the dashboard)
 app.get('/cast', (req, res) => res.sendFile(path.join(config.publicDir, 'cast.html')));
+
+// The Android sharing app, when one has been placed in the data directory (it is not in the repo)
+app.get('/cast/android.apk', (req, res) => {
+  const apk = path.join(config.dataDir, 'signage-cast.apk');
+  if (!fs.existsSync(apk)) return res.status(404).send('The Android app is not available on this server.');
+  res.type('application/vnd.android.package-archive');
+  res.download(apk, 'signage-cast.apk');
+});
+app.get('/cast/android', (req, res) => {
+  res.json({ available: fs.existsSync(path.join(config.dataDir, 'signage-cast.apk')) });
+});
 
 // Fallback to index.html for client-side routing
 app.get('*', (req, res, next) => {

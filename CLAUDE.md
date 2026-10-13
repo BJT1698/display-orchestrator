@@ -15,6 +15,7 @@ The README is partly outdated: it describes a Go backend. **The live server is N
 | Display agent | `client/agent/main.py` | Python 3 + `websockets`. WS link to the server, media cache, local HTTP on :9090 serving the viewer and `/api/agent/state` |
 | Display viewer | `client/viewer/` | Plain HTML/JS shown full screen by kiosk Chromium; polls the agent every second |
 | Appliance image | `nixos/` | Flake on `nixos-26.05`: installer ISO + installed system (`target-system`) |
+| Android cast app | `android/` | Kotlin, no AndroidX: `GuestSession` (guest WS protocol, same as `/cast`), `CastService` (MediaProjection + libwebrtc `io.github.webrtc-sdk:android`, foreground service), `MainActivity` |
 | Content | `content/` | Reusable HTML snippets for the media library (e.g. `orologio-notturno.html`) |
 
 Dead code, do not build on it: `server/cmd`, `server/internal`, `server/go.mod` (Go, no `go.sum`,
@@ -76,6 +77,23 @@ viewer, sync it: `rsync -a --delete client/viewer/ nixos/client/viewer/ && cp cl
   but days are checked against the current day. The WS hub re-checks every display every 30 s
   (`startScheduleTick`) and syncs only those whose answer changed; dashboards get
   `DISPLAY_NOW_PLAYING` (`now_playing_name`, `now_playing_reason`).
+
+## Android app (`android/`)
+
+- Phones cannot share from a web page (no `getDisplayMedia` on Android browsers), so the app does
+  what `/cast` does: guest request, code, approval, then one complete WebRTC offer. Video only,
+  long side capped at 1920, follows rotation. Works on the display network; it also takes the
+  TURN credentials it gets on approval.
+- Build: `cd android && ./gradlew assembleRelease` (JDK 17, SDK platform 35). Release signing
+  reads `android/keystore.properties` (ignored by git); the key lives outside the repo and must be
+  kept: Android only accepts updates signed with the same key. Bump `versionCode`/`versionName`
+  in `app/build.gradle.kts` for each release. CI (`android.yml`) builds a debug APK.
+- Distribution: copy the APK to the server's `DATA_DIR/signage-cast.apk`; it is served at
+  `/cast/android.apk`, and `/cast` opened on Android shows the download and the server address.
+- Testing: emulator + local stack, server at `10.0.2.2:<port>`. Start the headless kiosk with
+  `--disable-features=WebRtcHideLocalIpsWithMdns`, as real displays expose their IP by policy;
+  otherwise ICE fails behind the emulator NAT. `adb shell input text` drops characters on a slow
+  emulator: type one character per call.
 
 ## NixOS image
 

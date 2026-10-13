@@ -105,6 +105,13 @@ function GuestCastPage() {
   const [uuid, setUuid] = useState('');
   const { request } = guest;
   const insecure = !window.isSecureContext || !navigator.mediaDevices?.getDisplayMedia;
+  // Android browsers cannot share the screen from a page: point to the app instead
+  const android = /Android/i.test(navigator.userAgent);
+  const [apk, setApk] = useState(false);
+  useEffect(() => {
+    if (!android) return;
+    fetch('/cast/android').then((r) => r.json()).then((d) => setApk(Boolean(d.available))).catch(() => {});
+  }, [android]);
 
   const ask = (e) => {
     e.preventDefault();
@@ -135,13 +142,27 @@ function GuestCastPage() {
         </div>
         <h1 className="display text-3xl font-semibold text-ink">Share your screen</h1>
 
-        {insecure && (
+        {android && (
+          <div className="mt-6 p-4 rounded border border-line bg-raised text-sm text-ink space-y-3">
+            <p>Phones share their screen with the Signage Cast app, not from this page.</p>
+            {apk ? (
+              <a href="/cast/android.apk" className="btn btn-primary w-full justify-center">Download the Android app</a>
+            ) : (
+              <p className="text-muted">Ask the signage administrator for the app.</p>
+            )}
+            <p className="text-muted">
+              In the app, enter this server: <span className="text-ink font-medium break-all">{window.location.host}</span>
+            </p>
+          </div>
+        )}
+
+        {insecure && !android && (
           <div className="mt-6 px-3 py-2.5 rounded border border-alert/50 bg-alert/10 text-sm text-ink">
             This browser cannot share the screen from this address. Open the page over HTTPS, at {`https://${window.location.host}/cast`}.
           </div>
         )}
 
-        {(request.status === 'idle' || request.status === 'sending' || ended) && (
+        {!android && (request.status === 'idle' || request.status === 'sending' || ended) && (
           <>
             {ended && (
               <div className="mt-6 px-3 py-2.5 rounded border border-line bg-raised text-sm text-ink">
