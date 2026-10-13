@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import { db } from '../db/database.js';
 import { config } from '../config.js';
 import { schedulerService } from '../services/schedulerService.js';
+import { iceServersFor } from '../services/turnService.js';
 import { readCookie, userForToken, SESSION_COOKIE } from '../auth/auth.js';
 
 // Codes are stored as "ABC-DEF"; accept what people type ("abcdef", "ABC DEF")
@@ -119,6 +120,7 @@ class DisplayWebSocketHub {
         displays: withNowPlaying,
         pendingPairings: pairings,
         guestRequests: this.guestRequestList(),
+        iceServers: iceServersFor(ws.user?.username || 'dashboard', 7 * 24 * 3600),
         serverTime: new Date().toISOString()
       }
     }));
@@ -558,7 +560,11 @@ class DisplayWebSocketHub {
       r.approvedBy = who;
       r.expiresAt = new Date(Date.now() + minutes * 60 * 1000).toISOString();
       r.timer = setTimeout(() => this.endGuestRequest(r, 'expired'), minutes * 60 * 1000);
-      this.sendGuest(r.ws, { type: 'GUEST_STATUS', status: 'approved', uuid: display.uuid, displayName: display.name, expiresAt: r.expiresAt });
+      this.sendGuest(r.ws, {
+        type: 'GUEST_STATUS', status: 'approved', uuid: display.uuid, displayName: display.name, expiresAt: r.expiresAt,
+        // Relay credentials only once approved, and only for as long as the approval lasts
+        iceServers: iceServersFor('guest', minutes * 60 + 300),
+      });
       this.log('command', who, display.uuid, `Approved ${r.name} (${r.ip}) to share a screen on '${display.name}' for ${minutes} min`);
       this.broadcastGuestRequests();
     } else if (msg.type === 'GUEST_REJECT' && r.status === 'pending') {

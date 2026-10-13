@@ -35,6 +35,10 @@ export const config = {
   publicDir: PUBLIC_DIR,
   dbPath: path.join(DATA_DIR, 'orchestrator.sqlite'),
   heartbeatTimeoutMs: parseInt(process.env.HEARTBEAT_TIMEOUT_MS || '30000', 10), // 30s before display is flagged offline
+  // Optional TURN relay for screen sharing across networks that are not routed to the displays.
+  // TURN_URLS: comma list, e.g. "turn:192.168.55.10:3478,turn:172.17.11.10:3478"; TURN_SECRET: coturn static-auth-secret
+  turnUrls: (process.env.TURN_URLS || '').split(',').map((u) => u.trim()).filter(Boolean),
+  turnSecret: process.env.TURN_SECRET || '',
   authSecret: process.env.AUTH_SECRET || 'display-orchestrator-secret-key-2026',
   appVersion: '1.0.0'
 };

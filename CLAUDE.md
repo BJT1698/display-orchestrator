@@ -54,6 +54,10 @@ viewer, sync it: `rsync -a --delete client/viewer/ nixos/client/viewer/ && cp cl
   the viewer answers through a localhost-only `POST /api/agent/cast-answer`. One complete SDP each
   way, no trickle. Needs the dashboard on **HTTPS** (`getDisplayMedia`), and on the display the
   Chromium policy + firewall range UDP 50000-50100 from `nixos/modules/client-appliance.nix`.
+- **TURN relay** for screen sharing from networks not routed to the displays: the server hands out
+  time-limited coturn credentials (`services/turnService.js`, env `TURN_URLS`, `TURN_SECRET`) to
+  dashboards in `INIT_STATE` and to guests on approval; the browser uses them in its
+  `RTCPeerConnection`. The relay only delivers to the display network. Displays need nothing.
 - **Guest screen sharing**: public page `/cast` (`frontend/src/cast/`, second Vite entry `cast.html`),
   WS `/ws?type=guest` with no session. The guest sends `GUEST_REQUEST` (name, wished screen) and gets
   a code; any signed-in dashboard user answers `GUEST_APPROVE` (screen, minutes) / `GUEST_REJECT` /
