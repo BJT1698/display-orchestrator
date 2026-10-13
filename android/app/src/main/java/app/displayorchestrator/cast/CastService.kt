@@ -16,12 +16,15 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.util.DisplayMetrics
+import android.util.Log
 import android.view.WindowManager
 import org.json.JSONObject
 import org.webrtc.DataChannel
 import org.webrtc.DefaultVideoDecoderFactory
 import org.webrtc.DefaultVideoEncoderFactory
 import org.webrtc.EglBase
+import org.webrtc.HardwareVideoEncoderFactory
+import org.webrtc.MediaStreamTrack
 import org.webrtc.IceCandidate
 import org.webrtc.MediaConstraints
 import org.webrtc.MediaStream
@@ -39,6 +42,7 @@ import org.webrtc.VideoTrack
 import java.util.UUID
 import kotlin.math.max
 import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 /**
  * Captures the phone screen and streams it to the approved display over WebRTC, like the
@@ -52,7 +56,12 @@ class CastService : Service() {
         private const val ACTION_STOP = "app.displayorchestrator.cast.STOP"
         private const val CHANNEL = "sharing"
         private const val NOTIFICATION_ID = 1
-        private const val MAX_SIDE = 1920
+        // A portrait phone fills only the height of a landscape display: 1280 is plenty and
+        // halves the encoder's work. Landscape keeps more detail, within a pixel budget.
+        private const val MAX_SIDE_PORTRAIT = 1280
+        private const val MAX_SIDE_LANDSCAPE = 1920
+        private const val MAX_PIXELS = 1_250_000.0
+        private const val MAX_BITRATE = 6_000_000
         private const val FPS = 30
 
         var running = false
@@ -170,10 +179,33 @@ class CastService : Service() {
         val pc = factory.createPeerConnection(config, observer(id)) ?: throw IllegalStateException("no peer connection")
         this.pc = pc
         val sender = pc.addTrack(track, listOf("screen"))
-        // Keep text sharp: drop frames rather than resolution when the network is tight
+        // Smooth motion over peak sharpness when the phone or the Wi-Fi cannot keep up, and room
+        // for a sharp picture on the office network
         sender?.parameters?.let { params ->
-            params.degradationPreference = RtpParameters.DegradationPreference.MAINTAIN_RESOLUTION
+            params.degradationPreference = RtpParameters.DegradationPreference.BALANCED
+            params.encodings.forEach {
+                it.maxBitrateBps = MAX_BITRATE
+                it.maxFramerate = FPS
+            }
             sender.parameters = params
+        }
+        // Offer first the codecs this phone encodes in hardware (the displays decode VP8, VP9,
+        // H.264 and AV1); software encoding at this size is what makes the picture stutter
+        pc.transceivers.firstOrNull { it.sender.id() == sender?.id() }?.let { transceiver ->
+            val hardware = HardwareVideoEncoderFactory(egl.eglBaseContext, true, true)
+                .supportedCodecs.map { it.name.uppercase() }.toSet()
+            val rank = listOf("H264", "VP8", "VP9", "AV1")
+            val codecs = factory.getRtpSenderCapabilities(MediaStreamTrack.MediaType.MEDIA_TYPE_VIDEO).codecs
+            val ordered = codecs.sortedBy { c ->
+                val name = c.name.uppercase()
+                when {
+                    name in hardware -> rank.indexOf(name).let { if (it < 0) 9 else it }
+                    name in rank -> 10 + rank.indexOf(name)
+                    else -> 20 // rtx, red, ulpfec: keep them, after the real codecs
+                }
+            }
+            Log.i("CastService", "Hardware encoders: $hardware; offering ${ordered.map { it.name }.distinct()}")
+            transceiver.setCodecPreferences(ordered)
         }
 
         stopSignals = GuestSession.onSignal { msg -> main.post { onSignal(msg) } }
@@ -269,7 +301,8 @@ class CastService : Service() {
             @Suppress("DEPRECATION") wm.defaultDisplay.getRealMetrics(m)
             m.widthPixels to m.heightPixels
         }
-        val scale = minOf(1.0, MAX_SIDE.toDouble() / max(w, h))
+        val maxSide = if (h > w) MAX_SIDE_PORTRAIT else MAX_SIDE_LANDSCAPE
+        val scale = minOf(1.0, maxSide.toDouble() / max(w, h), sqrt(MAX_PIXELS / (w.toDouble() * h)))
         fun even(v: Double) = ((v / 2).roundToInt() * 2).coerceAtLeast(2)
         return even(w * scale) to even(h * scale)
     }
