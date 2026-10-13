@@ -82,7 +82,9 @@ viewer, sync it: `rsync -a --delete client/viewer/ nixos/client/viewer/ && cp cl
 
 - Phones cannot share from a web page (no `getDisplayMedia` on Android browsers), so the app does
   what `/cast` does: guest request, code, approval, then one complete WebRTC offer. Video only,
-  long side capped at 1920, follows rotation. Works on the display network; it also takes the
+  follows rotation. For smoothness: hardware-encoded codecs offered first (`setCodecPreferences`;
+  displays decode VP8, VP9, H.264, AV1), capture capped at 1280 long side in portrait and ~1.25 MP
+  in landscape, `BALANCED` degradation, 6 Mbit/s cap. Works on the display network; it also takes the
   TURN credentials it gets on approval.
 - Build: `cd android && ./gradlew assembleRelease` (JDK 17, SDK platform 35). Release signing
   reads `android/keystore.properties` (ignored by git); the key lives outside the repo and must be
