@@ -18,8 +18,9 @@ let
     export VIEWER_DIR="''${VIEWER_DIR:-${clientDir}/viewer}"
     # Agent output goes to the journal as it happens
     export PYTHONUNBUFFERED=1
-    # wlr-randr rotates the kiosk output (orientation set from the dashboard)
-    export PATH="${lib.makeBinPath [ pkgs.wlr-randr ]}:$PATH"
+    # wlr-randr rotates the kiosk output (orientation set from the dashboard); grim lets the
+    # freeze watchdog check that the compositor still delivers a picture of the screen
+    export PATH="${lib.makeBinPath [ pkgs.wlr-randr pkgs.grim ]}:$PATH"
 
     mkdir -p "$CACHE_DIR/media"
 
@@ -57,6 +58,10 @@ in
     user = "kiosk";
     program = "${pkgs.chromium}/bin/chromium --no-sandbox --ozone-platform=wayland --enable-features=UseOzonePlatform --kiosk --noerrdialogs --disable-infobars --check-for-update-interval=31536000 --overscroll-history-navigation=0 --disable-pinch --disable-session-crashed-bubble --autoplay-policy=no-user-gesture-required --remote-debugging-port=9222 --user-data-dir=/home/kiosk/.config/chromium-kiosk --app=http://localhost:9090";
     extraArguments = [ "-s" ]; # Silent mode
+    # Intel graphics on HDMI: wlroots' atomic modesetting kept failing with "Atomic commit failed:
+    # Device or resource busy" (thousands per day, first one right after a cursor change, e.g. a
+    # remote control session) and the picture eventually froze. The legacy KMS path showed none.
+    environment.WLR_DRM_NO_ATOMIC = "1";
   };
 
   # tty1 belongs to the kiosk. A login prompt there is useless (root is locked, the first-boot

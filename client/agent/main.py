@@ -119,6 +119,9 @@ class ViewerHTTPHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/api/agent/state":
+            # The viewer polls every second: proof that the browser is alive
+            if self.client_address[0] in ("127.0.0.1", "::1"):
+                viewer_watch["poll"] = time.time()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Access-Control-Allow-Origin", "*")
@@ -132,6 +135,10 @@ class ViewerHTTPHandler(SimpleHTTPRequestHandler):
             }
             self.wfile.write(json.dumps(state).encode("utf-8"))
             return
+        # Files in the Nix store all carry the same 1970 date, so "not modified since" would keep
+        # Chromium on an old app.js after an update: always send the file
+        if not self.path.startswith("/media/"):
+            del self.headers["If-Modified-Since"]
         super().do_GET()
 
     def log_message(self, format, *args):
@@ -625,6 +632,86 @@ def request_update(tag):
         print(f"Update request failed: {e}", file=sys.stderr)
         return False
 
+# --- Kiosk restarts, reboots and the freeze watchdog --------------------------
+# Like updates, the image's signage-recover service (root) does the work; the agent only asks.
+# Two signs of a stuck display: the compositor no longer delivers a picture of the screen (grim,
+# wlr-screencopy: ~50 ms when healthy, never when the compositor is stuck, while Chromium keeps
+# "drawing" as if nothing happened), or the viewer stops polling (the browser hangs). Either way
+# the kiosk is restarted, and the whole display if that did not help within 15 minutes.
+
+RECOVER_DIR = Path(os.environ.get("SIGNAGE_RECOVER_DIR", "/var/lib/signage-recover"))
+RECOVER_INBOX = RECOVER_DIR / "inbox"
+RECOVER_ACTIONS = ("restart-kiosk", "reboot")
+WATCH_GRACE = 180     # seconds after start or after a recovery before judging again
+WATCH_EVERY = 20
+CAPTURE_FAILS = 3     # screen captures in a row that never come back: ~1 minute
+POLLS_SILENT = 90     # no viewer poll for this long: the page or the browser hangs
+
+viewer_watch = {"poll": 0.0}
+
+def compositor_draws():
+    """True if the compositor hands over a fresh picture of the screen within 10 s."""
+    grim, env = shutil.which("grim"), wayland_env()
+    if not grim or not env:
+        return True  # nothing to judge with
+    try:
+        return subprocess.run([grim, "-t", "ppm", "-"], env=env, stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL, timeout=10).returncode == 0
+    except subprocess.TimeoutExpired:
+        return False
+    except OSError:
+        return True
+
+def request_recovery(action, reason):
+    if action not in RECOVER_ACTIONS:
+        return False
+    print(f"🛟 {action}: {reason}")
+    send_to_server({"type": "LOG_EVENT", "uuid": config["uuid"], "level": "warn",
+                    "message": f"{config['name']}: {'restarting the kiosk' if action == 'restart-kiosk' else 'rebooting'} ({reason})"})
+    try:
+        tmp = RECOVER_INBOX / ".request.tmp"
+        tmp.write_text(action + "\n")
+        tmp.replace(RECOVER_INBOX / "request")
+        return True
+    except OSError as e:
+        print(f"Recovery request failed: {e}", file=sys.stderr)
+        return False
+
+def screen_connected():
+    # With no display attached nothing is drawn, and that is not a freeze
+    for status in Path("/sys/class/drm").glob("card*-*/status"):
+        try:
+            if status.read_text().strip() == "connected":
+                return True
+        except OSError:
+            pass
+    return False
+
+def freeze_watch():
+    quiet_until = time.time() + WATCH_GRACE
+    last_kiosk_restart = 0.0
+    capture_fails = 0
+    while True:
+        time.sleep(WATCH_EVERY)
+        now = time.time()
+        if now < quiet_until or not RECOVER_INBOX.is_dir() or not screen_connected():
+            capture_fails = 0
+            continue
+        capture_fails = 0 if compositor_draws() else capture_fails + 1
+        poll = viewer_watch["poll"]
+        if capture_fails >= CAPTURE_FAILS:
+            problem = "the screen picture froze"
+        elif not poll or now - poll > POLLS_SILENT:
+            problem = "the screen page stopped responding"
+        else:
+            continue
+        action = "reboot" if now - last_kiosk_restart < 15 * 60 else "restart-kiosk"
+        if request_recovery(action, problem) and action == "restart-kiosk":
+            last_kiosk_restart = now
+        quiet_until = time.time() + WATCH_GRACE
+        capture_fails = 0
+        viewer_watch["poll"] = 0.0
+
 def heartbeat_message():
     uptime_sec = int(time.time() - start_time)
     return {
@@ -639,6 +726,7 @@ def heartbeat_message():
             "version": installed_version(),
             "update": update_status(),
             "updatesSupported": UPDATE_INBOX.is_dir() and os.access(UPDATE_INBOX, os.W_OK),
+            "recoverySupported": RECOVER_INBOX.is_dir() and os.access(RECOVER_INBOX, os.W_OK),
         },
     }
 
@@ -716,6 +804,10 @@ async def handle_ws_message(ws, msg):
         request_update(tag)
         await ws.send(json.dumps(heartbeat_message()))
 
+    elif mtype == "RECOVER":
+        reason = "scheduled restart" if msg.get("scheduled") else "requested from the dashboard"
+        request_recovery(msg.get("action"), reason)
+
     elif mtype == "REMOTE_START":
         remote.start(ws)
 
@@ -749,6 +841,7 @@ def main():
 
     # 2. Keep the screen rotated as configured (also before the server answers)
     threading.Thread(target=orientation_watch, daemon=True).start()
+    threading.Thread(target=freeze_watch, daemon=True).start()
 
     # 3. Start local HTTP server thread
     http_thread = threading.Thread(target=start_http_server, args=(config["httpPort"],), daemon=True)
