@@ -156,3 +156,19 @@ systemRouter.put('/after-hours', (req, res) => {
   wsHub.syncAllDisplays();
   res.json({ success: true, data: value });
 });
+
+// Scheduled restart of every display
+systemRouter.get('/daily-reboot', (req, res) => {
+  res.json({ success: true, data: settingsService.getDailyReboot() });
+});
+
+systemRouter.put('/daily-reboot', (req, res) => {
+  const [value, error] = settingsService.validateDailyReboot(req.body || {});
+  if (error) return res.status(400).json({ success: false, error });
+  settingsService.setDailyReboot(value);
+  const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  wsHub.log('info', 'server', null, value.enabled
+    ? `${actor(req)} scheduled a daily restart of the displays at ${value.time} (${value.days.map((d) => names[d - 1]).join(' ')})`
+    : `${actor(req)} turned off the scheduled restart of the displays`);
+  res.json({ success: true, data: value });
+});

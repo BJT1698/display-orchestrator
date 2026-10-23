@@ -109,6 +109,17 @@ viewer, sync it: `rsync -a --delete client/viewer/ nixos/client/viewer/ && cp cl
   server address, name) writing `/etc/signage/client.env`. Installer offers Wi-Fi too and copies
   the NetworkManager profiles into the installed system.
 - The agent can be overridden by `/etc/signage/main.py`; `VIEWER_DIR` points to the viewer.
+- **Freezes**: Cage runs with `WLR_DRM_NO_ATOMIC=1` (legacy KMS). With atomic modesetting the
+  Intel HDMI output logged thousands of "Atomic commit failed: Device or resource busy" (first one
+  right after a cursor change, e.g. remote control) and the picture froze; legacy mode logs none.
+- `modules/recovery.nix`: like updates, the agent writes `restart-kiosk` or `reboot` to
+  `/var/lib/signage-recover/inbox/request`; a root path unit restarts `cage-tty1` or reboots (at
+  most one reboot per 20 min, else a kiosk restart). Hardware watchdog via `systemd.settings.Manager`.
+  The agent's `freeze_watch` restarts the kiosk when `grim` (wlr-screencopy) gets no picture 3 times
+  in a row (~50 ms when healthy, never when the compositor is stuck; Chromium keeps "drawing" then,
+  so in-page signals such as requestAnimationFrame do not see it) or the viewer stops polling for
+  90 s; again within 15 min it reboots. Dashboard: `restart_kiosk`/`reboot` commands (`RECOVER`
+  message) and a scheduled daily restart (`settings` key `daily_reboot`, checked by the 30 s tick).
 - `modules/updates.nix`: remote updates. The agent (kiosk user) writes a release tag to
   `/var/lib/signage-update/inbox/request`; a root path unit runs `nixos-rebuild switch --flake
   github:BJT1698/display-orchestrator/<tag>?dir=nixos#target-system` and writes `status.json`
@@ -171,13 +182,16 @@ the Chrome DevTools Protocol. For screen sharing in headless tests, replace
 ## Known pitfalls (all hit for real)
 
 - `python3 -I` ignores `PYTHONUNBUFFERED`; use `-u` to see agent logs.
-- Chromium kept a stale `app.js` until the agent sent `Cache-Control: no-cache`.
+- Chromium kept a stale `app.js` until the agent sent `Cache-Control: no-cache` (and see the 304 pitfall below).
 - HTML snippets inserted with `innerHTML` do not run scripts; the viewer uses `srcdoc` iframes.
 - When the only display output disappears, Chromium crashes; the kiosk restarts itself now.
 - After `nixos-rebuild switch` on a running laptop, firmware for an already-probed device needs a
   driver reload (`modprobe -r iwlmvm iwlwifi && modprobe iwlwifi`).
 - SiteGround-hosted sites answer 403 to old Chrome versions: keep nixpkgs current.
-- `pkill -f <pattern>` over SSH can match and kill the SSH command itself.
+- `pkill -f`/`pgrep -f <pattern>` over SSH match the SSH command itself: `kill -STOP $(pgrep -f
+  cage-wrapped)` froze the test session, not the compositor. Use `pgrep -x .cage-wrapped`.
+- Nix store files all date from 1970: the agent's file server answered 304 "not modified" and
+  Chromium kept an old `app.js` after updates. The agent now ignores `If-Modified-Since`.
 
 ## Open items
 

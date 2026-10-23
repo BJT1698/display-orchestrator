@@ -6,6 +6,7 @@
     ../../modules/first-boot-wizard.nix
     ../../modules/laptop.nix
     ../../modules/updates.nix
+    ../../modules/recovery.nix
   ];
 
   # Bootloader Configuration

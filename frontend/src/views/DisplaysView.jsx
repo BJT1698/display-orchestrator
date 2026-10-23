@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { RefreshCw, Power, Globe, Trash2, Plus, MousePointerClick, MonitorUp } from 'lucide-react';
+import { RefreshCw, Power, Globe, Trash2, Plus, MousePointerClick, MonitorUp, RotateCcw, PowerOff } from 'lucide-react';
 import { api, updatesApi } from '../services/api';
 import { PageHeader, EmptyState, Tally, formatDuration, ORIENTATIONS, compareVersions } from '../components/ui';
 
@@ -244,6 +244,24 @@ export function DisplaysView({
                           aria-label={`Reload ${display.name}`}
                         >
                           <RefreshCw className={`w-4 h-4 ${busy('reload') ? 'animate-spin' : ''}`} />
+                        </button>
+                        <button
+                          onClick={() => confirm(`Restart the kiosk on ${display.name}? The screen goes black for about 20 seconds.`) && handleCommand(display.id, 'restart_kiosk')}
+                          disabled={!isOnline || !display.metrics?.recoverySupported || busy('restart_kiosk')}
+                          className="btn-icon"
+                          title={display.metrics?.recoverySupported ? 'Restart the kiosk (fixes a frozen picture)' : 'Needs the latest display version'}
+                          aria-label={`Restart the kiosk on ${display.name}`}
+                        >
+                          <RotateCcw className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => confirm(`Reboot ${display.name}? It is back in about a minute.`) && handleCommand(display.id, 'reboot')}
+                          disabled={!isOnline || !display.metrics?.recoverySupported || busy('reboot')}
+                          className="btn-icon"
+                          title={display.metrics?.recoverySupported ? 'Reboot the display' : 'Needs the latest display version'}
+                          aria-label={`Reboot ${display.name}`}
+                        >
+                          <PowerOff className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => onSetBlank(display, !display.metrics?.blank)}

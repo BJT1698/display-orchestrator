@@ -11,6 +11,13 @@ const AFTER_HOURS_DEFAULTS = {
 
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+// Scheduled restart: every display reboots at this time on these days (a fresh start each day)
+const DAILY_REBOOT_DEFAULTS = {
+  enabled: false,
+  time: '05:00',
+  days: [1, 2, 3, 4, 5, 6, 7],
+};
+
 function read(key, fallback) {
   const row = db.getOne('SELECT value FROM settings WHERE key = ?', key);
   if (!row) return fallback;
@@ -51,5 +58,22 @@ export const settingsService = {
 
   setAfterHours(value) {
     write('after_hours', value);
+  },
+
+  getDailyReboot() {
+    return read('daily_reboot', DAILY_REBOOT_DEFAULTS);
+  },
+
+  validateDailyReboot(input) {
+    const value = { ...this.getDailyReboot(), ...input };
+    value.enabled = Boolean(value.enabled);
+    value.days = [...new Set((value.days || []).map(Number))].filter((d) => d >= 1 && d <= 7).sort();
+    if (!TIME.test(value.time)) return [null, 'Use a time like 05:00.'];
+    if (value.enabled && !value.days.length) return [null, 'Choose at least one day.'];
+    return [value, null];
+  },
+
+  setDailyReboot(value) {
+    write('daily_reboot', value);
   },
 };

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Trash2, Moon } from 'lucide-react';
-import { api, afterHoursApi } from '../services/api';
+import { Plus, Trash2, Moon, TimerReset } from 'lucide-react';
+import { api, afterHoursApi, dailyRebootApi } from '../services/api';
 import { PageHeader, EmptyState, Modal, ErrorNote, Tally } from '../components/ui';
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -45,6 +45,82 @@ function DayPicker({ value, onChange, disabled }) {
         );
       })}
     </div>
+  );
+}
+
+// Scheduled restart: every display reboots at a set time, a fresh start against slow drifts
+function DailyRebootPanel() {
+  const [saved, setSaved] = useState(null);
+  const [draft, setDraft] = useState(null);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    dailyRebootApi.get().then((cfg) => { setSaved(cfg); setDraft(cfg); }).catch((err) => setError(err.message));
+  }, []);
+
+  if (!draft) return error ? <div className="mb-8"><ErrorNote>{error}</ErrorNote></div> : null;
+
+  const set = (patch) => setDraft((d) => ({ ...d, ...patch }));
+  const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
+
+  const save = async (next = draft) => {
+    setBusy(true);
+    setError('');
+    try {
+      const cfg = await dailyRebootApi.save(next);
+      setSaved(cfg);
+      setDraft(cfg);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const setEnabled = (enabled) => {
+    const next = { ...draft, enabled };
+    setDraft(next);
+    save(next);
+  };
+
+  return (
+    <section className="panel mb-8" aria-labelledby="daily-reboot-heading">
+      <div className="flex flex-wrap items-start justify-between gap-4 px-5 pt-4 pb-4 border-b border-line">
+        <div className="flex items-start gap-3 min-w-0">
+          <TimerReset className="w-4 h-4 mt-1 text-muted shrink-0" />
+          <div className="min-w-0">
+            <h2 id="daily-reboot-heading" className="text-base font-semibold text-ink">Scheduled restart</h2>
+            <p className="mt-0.5 text-sm text-muted">
+              {saved.enabled
+                ? <>Every display reboots at <span className="text-ink">{saved.time}</span> on {describeDays(saved.days)}. It takes about a minute; pick a time nobody is looking.</>
+                : 'Reboot every display at a set time, a fresh start each day. Frozen screens are restarted on their own anyway.'}
+            </p>
+          </div>
+        </div>
+        <div className="segmented shrink-0" role="group" aria-label="Scheduled restart">
+          <button type="button" aria-pressed={!draft.enabled} disabled={busy} onClick={() => setEnabled(false)}>Off</button>
+          <button type="button" aria-pressed={draft.enabled} disabled={busy} onClick={() => setEnabled(true)}>On</button>
+        </div>
+      </div>
+      <form
+        className="px-5 py-4 grid gap-5 lg:grid-cols-[auto_minmax(12rem,16rem)] lg:items-end"
+        onSubmit={(e) => { e.preventDefault(); save(); }}
+      >
+        <div>
+          <span className="field-label">Days</span>
+          <DayPicker value={draft.days} onChange={(days) => set({ days })} />
+        </div>
+        <div className="grid grid-cols-[1fr_auto] gap-2 items-end">
+          <div>
+            <label className="field-label" htmlFor="dr-time">At</label>
+            <input id="dr-time" type="time" className="control" value={draft.time} onChange={(e) => set({ time: e.target.value })} required />
+          </div>
+          <button type="submit" className="btn btn-primary" disabled={!dirty || busy}>{busy ? 'Saving' : 'Save'}</button>
+        </div>
+        {error && <div className="lg:col-span-2"><ErrorNote>{error}</ErrorNote></div>}
+      </form>
+    </section>
   );
 }
 
@@ -217,6 +293,7 @@ export function SchedulesView({
       </PageHeader>
 
       <AfterHoursPanel playlists={playlists} />
+      <DailyRebootPanel />
 
       {schedules.length === 0 ? (
         <EmptyState

@@ -4,6 +4,7 @@ import { db } from '../db/database.js';
 import { config } from '../config.js';
 import { schedulerService } from '../services/schedulerService.js';
 import { iceServersFor } from '../services/turnService.js';
+import { settingsService } from '../services/settingsService.js';
 import { readCookie, userForToken, SESSION_COOKIE } from '../auth/auth.js';
 
 // Codes are stored as "ABC-DEF"; accept what people type ("abcdef", "ABC DEF")
@@ -694,6 +695,11 @@ class DisplayWebSocketHub {
     if (this.scheduleTimer) clearInterval(this.scheduleTimer);
     this.scheduleTimer = setInterval(() => {
       try {
+        this.checkDailyReboot();
+      } catch (err) {
+        console.error('Scheduled restart failed:', err.message);
+      }
+      try {
         for (const display of db.all('SELECT * FROM displays')) {
           const { playlistId, reason } = schedulerService.resolvePlaylistChoice(display);
           const key = `${playlistId}:${reason}`;
@@ -748,8 +754,29 @@ class DisplayWebSocketHub {
     return this.sendToDisplay(uuid, { type: 'BLANK_SCREEN', state: Boolean(state) });
   }
 
-  rebootDevice(uuid) {
-    return this.sendToDisplay(uuid, { type: 'REBOOT_DEVICE' });
+  // The agent passes these to the display's root recovery service ('restart-kiosk' or 'reboot')
+  rebootDevice(uuid, scheduled = false) {
+    return this.sendToDisplay(uuid, { type: 'RECOVER', action: 'reboot', scheduled });
+  }
+
+  restartKiosk(uuid) {
+    return this.sendToDisplay(uuid, { type: 'RECOVER', action: 'restart-kiosk' });
+  }
+
+  // Once a day at the chosen time, every connected display reboots
+  checkDailyReboot(now = new Date()) {
+    const cfg = settingsService.getDailyReboot();
+    if (!cfg.enabled) return;
+    const day = now.getDay() === 0 ? 7 : now.getDay();
+    const hhmm = now.toTimeString().substring(0, 5);
+    const today = now.toDateString();
+    if (!cfg.days.includes(day) || hhmm !== cfg.time || this.lastDailyReboot === today) return;
+    this.lastDailyReboot = today;
+    let count = 0;
+    for (const [uuid] of this.displaySockets) {
+      if (this.rebootDevice(uuid, true)) count++;
+    }
+    this.log('command', 'scheduler', null, `Scheduled restart: ${count} display${count === 1 ? '' : 's'} rebooting`);
   }
 
   requestScreenshot(uuid) {

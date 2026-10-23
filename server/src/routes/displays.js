@@ -198,6 +198,10 @@ displaysRouter.post('/:id/command', (req, res) => {
       sent = wsHub.rebootDevice(display.uuid);
       break;
 
+    case 'restart_kiosk':
+      sent = wsHub.restartKiosk(display.uuid);
+      break;
+
     case 'screenshot':
       sent = wsHub.requestScreenshot(display.uuid);
       break;
