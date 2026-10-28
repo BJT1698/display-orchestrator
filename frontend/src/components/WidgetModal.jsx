@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
-import { mediaApi, calendarsApi } from '../services/api';
+import { mediaApi, calendarsApi, wikiApi } from '../services/api';
 import { WIDGETS, widgetByType, readWidget } from '../widgets';
 import { searchPlaces } from '../widgets/weather';
 import { imageToDataUrl } from '../widgets/announcement';
@@ -183,6 +183,8 @@ function Field({ field, value, config, onChange, onError }) {
       return <PlaceField id={id} label={label} hint={hint} config={config} onChange={onChange} />;
     case 'calendar':
       return <CalendarField id={id} label={label} config={config} onChange={onChange} />;
+    case 'wiki':
+      return <WikiField id={id} label={label} onChange={onChange} />;
     default:
       return <div>{label}<input id={id} type={field.type === 'url' ? 'url' : 'text'} className="control" placeholder={field.placeholder} value={value || ''} onChange={(e) => onChange(field.key, e.target.value)} />{hint}</div>;
   }
@@ -264,6 +266,86 @@ function PlaceField({ id, label, hint, config, onChange }) {
       {state === 'error' && <p className="field-hint">Place search is not available right now.</p>}
       {chosen && !results.length && <p className="field-hint">{config.place} ({config.latitude}, {config.longitude})</p>}
       {!chosen && hint}
+    </div>
+  );
+}
+
+// The wiki account lives on the server: here only its address and email. Connecting checks it there.
+function WikiField({ id, label, onChange }) {
+  const [info, setInfo] = useState(null);
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({ url: '', email: '', password: '' });
+  const [state, setState] = useState({ busy: false, error: '' });
+
+  const use = (wiki) => {
+    setInfo(wiki);
+    onChange('feedId', wiki.configured ? wiki.feedId : '');
+    onChange('wikiUrl', wiki.configured ? wiki.url : '');
+  };
+
+  useEffect(() => {
+    wikiApi.get().then((wiki) => {
+      use(wiki);
+      if (wiki.configured) setForm((f) => ({ ...f, url: wiki.url, email: wiki.email }));
+      else setEditing(true);
+    }).catch((err) => setState({ busy: false, error: err.message }));
+  }, []);
+
+  const connect = async () => {
+    setState({ busy: true, error: '' });
+    try {
+      use(await wikiApi.connect(form.url, form.email, form.password));
+      setEditing(false);
+      setForm((f) => ({ ...f, password: '' }));
+      setState({ busy: false, error: '' });
+    } catch (err) {
+      setState({ busy: false, error: err.message });
+    }
+  };
+
+  const disconnect = async () => {
+    if (!confirm('Disconnect the wiki? Wiki widgets will stop updating.')) return;
+    try {
+      await wikiApi.disconnect();
+      use({ configured: false });
+      setEditing(true);
+    } catch (err) {
+      setState({ busy: false, error: err.message });
+    }
+  };
+
+  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  return (
+    <div>
+      {label}
+      {info?.configured && !editing && (
+        <div className="flex items-center justify-between gap-3">
+          <p id={id} className="text-sm text-ink min-w-0 truncate">{info.url} <span className="text-muted">as {info.email}</span></p>
+          <div className="flex gap-2 shrink-0">
+            <button type="button" className="btn btn-quiet btn-sm" onClick={() => setEditing(true)}>Change account</button>
+            <button type="button" className="btn btn-quiet btn-sm" onClick={disconnect}>Disconnect</button>
+          </div>
+        </div>
+      )}
+      {editing && (
+        <div className="p-3 rounded border border-line space-y-2">
+          <input id={id} className="control" type="url" placeholder="Wiki address, e.g. http://wiki.example.local" value={form.url} onChange={set('url')} />
+          <input className="control" type="email" placeholder="Email of the wiki account" value={form.email} onChange={set('email')} autoComplete="off" />
+          <input className="control" type="password" placeholder={info?.configured ? 'Password (leave empty to keep the saved one)' : 'Password'} value={form.password} onChange={set('password')} autoComplete="new-password" />
+          <p className="field-hint">
+            An Otter Wiki account that can only read is enough. The password stays on the signage server;
+            screens only receive the numbers and page titles.
+          </p>
+          <div className="flex gap-2">
+            <button type="button" className="btn btn-primary btn-sm" disabled={state.busy || !form.url.trim() || !form.email.trim()} onClick={connect}>
+              {state.busy ? 'Checking the account' : 'Connect'}
+            </button>
+            {info?.configured && <button type="button" className="btn btn-quiet btn-sm" onClick={() => setEditing(false)}>Cancel</button>}
+          </div>
+        </div>
+      )}
+      {state.error && <p className="field-hint text-alert">{state.error}</p>}
     </div>
   );
 }
