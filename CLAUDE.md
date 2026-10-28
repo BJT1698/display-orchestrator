@@ -66,6 +66,14 @@ viewer, sync it: `rsync -a --delete client/viewer/ nixos/client/viewer/ && cp cl
   guest's `CAST_OFFER` goes to the approved screen, then it is the normal cast flow. Requests live in
   memory only; closing the page ends them; 5 requests per IP per 10 min, 10 pending at most,
   guest messages over 64 KB close the socket.
+- **PCs in a PXE deploy** (Dell/Lenovo WinPE, project `~/Progetti/dell-ipxe`): `SignageLive.ps1` on the PXE
+  share registers at `POST /live/hello` with the shared key (`X-Live-Token`, env `LIVE_TOKEN`), polls
+  `GET /live/<id>/state` every 2 s, posts a 480 px preview every 30 s and, only while someone watches,
+  ~3 JPEG/s to `/live/<id>/frame`. `services/liveService.js` keeps them in memory (gone after 30 s of
+  silence) and serves MJPEG at `/live/v/<random token>/stream.mjpg` plus a page for displays.
+  Dashboard: Overview "PCs in deploy" (`LIVE_SOURCES` over WS), watch, `POST /api/live/<id>/show`
+  pushes that page to a display with the normal `PUSH_URL` (address taken from how the display
+  reached the server); `hide` and departures clear it. No display update needed.
 - **Orientation** is owned by the server (`landscape`, `portrait`, `landscape-flipped`,
   `portrait-flipped`). The agent applies it as a compositor transform with `wlr-randr` (Cage
   supports wlr-output-management) and re-checks every 5 s; the handshake must not overwrite it.

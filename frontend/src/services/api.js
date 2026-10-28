@@ -57,6 +57,11 @@ export const calendarsApi = {
   remove: (id) => jsonCall(`${API_BASE}/calendars/${id}`, 'DELETE'),
 };
 
+export const liveApi = {
+  show: (id, displayId, minutes) => jsonCall(`${API_BASE}/live/${id}/show`, 'POST', { displayId, minutes }),
+  hide: (id, displayId) => jsonCall(`${API_BASE}/live/${id}/hide`, 'POST', { displayId }),
+};
+
 export const dailyRebootApi = {
   get: () => jsonCall(`${API_BASE}/system/daily-reboot`),
   save: (payload) => jsonCall(`${API_BASE}/system/daily-reboot`, 'PUT', payload),

@@ -5,6 +5,7 @@ import { config } from '../config.js';
 import { schedulerService } from '../services/schedulerService.js';
 import { iceServersFor } from '../services/turnService.js';
 import { settingsService } from '../services/settingsService.js';
+import { liveService } from '../services/liveService.js';
 import { readCookie, userForToken, SESSION_COOKIE } from '../auth/auth.js';
 
 // Codes are stored as "ABC-DEF"; accept what people type ("abcdef", "ABC DEF")
@@ -38,6 +39,8 @@ class DisplayWebSocketHub {
 
       ws.isAlive = true;
       ws.clientIp = clientIp;
+      // How this client reached us, so pages pushed to a display use an address it can open
+      ws.serverBase = `http://${String(req.socket.localAddress || '').replace(/^::ffff:/, '')}:${req.socket.localPort}`;
       ws.clientType = clientType;
       ws.displayUuid = null;
 
@@ -90,6 +93,7 @@ class DisplayWebSocketHub {
     // Start background sweep for dead displays
     this.startHeartbeatSweep();
     this.startScheduleTick();
+    this.startLiveSources();
     console.log('✓ WebSocket Hub initialized on /ws');
   }
 
@@ -122,6 +126,7 @@ class DisplayWebSocketHub {
         pendingPairings: pairings,
         guestRequests: this.guestRequestList(),
         iceServers: iceServersFor(ws.user?.username || 'dashboard', 7 * 24 * 3600),
+        liveSources: liveService.list(),
         serverTime: new Date().toISOString()
       }
     }));
@@ -744,6 +749,35 @@ class DisplayWebSocketHub {
       url,
       durationSeconds: parseInt(durationSeconds, 10)
     });
+  }
+
+  displayServerBase(uuid) {
+    const ws = this.displaySockets.get(uuid);
+    return ws && ws.readyState === WebSocket.OPEN ? ws.serverBase : null;
+  }
+
+  // Ends a pushed page now (it would expire on its own anyway)
+  clearPush(uuid) {
+    return this.sendToDisplay(uuid, { type: 'PUSH_URL', url: 'about:blank', durationSeconds: 1 });
+  }
+
+  // PCs in a PXE deploy: dashboards see them come and go; displays showing one go back to normal
+  startLiveSources() {
+    let pending = null;
+    liveService.hooks({
+      changed: () => {
+        if (pending) return;
+        pending = setTimeout(() => {
+          pending = null;
+          this.broadcastToDashboards({ type: 'LIVE_SOURCES', data: liveService.list() });
+        }, 300);
+      },
+      gone: (s, shownOn) => {
+        for (const uuid of shownOn) this.clearPush(uuid);
+        this.log('info', 'server', null, `${s.profile} deploy of ${s.name}${s.serial ? ' (' + s.serial + ')' : ''} disconnected`);
+      },
+    });
+    this.liveTimer = setInterval(() => liveService.sweep(), 5000);
   }
 
   forceReload(uuid) {
