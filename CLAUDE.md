@@ -138,7 +138,7 @@ viewer, sync it: `rsync -a --delete client/viewer/ nixos/client/viewer/ && cp cl
 `frontend/src/widgets/`: announcement, weather (Open-Meteo, fetched by the screen every 15 min,
 last answer kept in localStorage; animated scene per weather and day/night: sky gradient, CSS
 clouds/sun/stars, one canvas for rain and snow, crossfade on change; `window.signageWeatherPreview(code, isDay)`
-shows any scene for tests), clock, night clock (black, dim, slow drift against burn-in), calendar (see below), countdown, QR (SVG drawn at authoring time). Each widget
+shows any scene for tests), clock, night clock (black, dim, slow drift against burn-in), calendar and wiki (see below), countdown, QR (SVG drawn at authoring time). Each widget
 renders a self-contained HTML snippet saved as an ordinary `html_snippet` media; its settings ride
 in a leading `<!-- signage-widget:<base64 JSON> -->` comment so the dashboard can reopen it.
 **Calendar widget**: calendars published as ICS (Outlook "Publish a calendar") are stored on the
@@ -149,6 +149,14 @@ at `/api/calendars` (the link never comes back out); screens read `GET /calendar
 its own origin first (dashboard preview), then the server address from the agent's
 `/api/agent/state` (on displays the snippet runs on the agent's origin). **ICS links are secrets:
 never commit them.**
+**Wiki widget**: statistics of an An Otter Wiki read with a read-only account.
+`services/wikiService.js` logs in through the wiki's form (CSRF token + session cookie, logs in again
+on 403/redirect), reads `/sitemap.xml` (page count) and `/-/changelog/feed.atom` (the whole history:
+the oldest commit touching a page that still exists = its creation; page names come from the
+enclosure links, not the entry title). Account in `settings` key `wiki` (`url`, `email`, `password`,
+random `feedId`); `GET/PUT/DELETE /api/wiki` (PUT checks the login first, an empty password keeps the
+saved one, the password never comes back out); screens read `GET /wiki/<feedId>.json` (no session,
+CORS *, 5 min cache, last good numbers kept).
 Announcement pictures are embedded once (data URL in the page, a placeholder in the settings).
 Screen text is Italian; sizes in vmin. Editing a media re-syncs all displays, and the agent's
 playlist `revision` hash makes the viewer restart playback when any item changed.

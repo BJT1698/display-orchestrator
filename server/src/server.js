@@ -13,6 +13,7 @@ import { systemRouter } from './routes/system.js';
 import { authRouter } from './routes/auth.js';
 import { usersRouter } from './routes/users.js';
 import { calendarsRouter, calendarFeed } from './routes/calendars.js';
+import { wikiRouter, wikiFeed } from './routes/wiki.js';
 import { liveRouter, liveFeed } from './routes/live.js';
 import { attachUser, requireUser, requireAdmin, ensureSetupCode, purgeExpiredSessions } from './auth/auth.js';
 
@@ -54,6 +55,7 @@ app.use('/api/playlists', playlistsRouter);
 app.use('/api/schedules', schedulesRouter);
 app.use('/api/system', systemRouter);
 app.use('/api/calendars', calendarsRouter);
+app.use('/api/wiki', wikiRouter);
 app.use('/api/live', liveRouter);
 
 // Widget previews run in sandboxed iframes (opaque origin) and load these fonts cross-origin
@@ -70,6 +72,9 @@ app.use('/live', liveFeed);
 
 // Calendar events for screens (by random id, no session)
 app.use('/calendar', calendarFeed);
+
+// Wiki numbers for screens (by random id, no session)
+app.use('/wiki', wikiFeed);
 
 // Public page for guests who ask to share their screen (approval happens in the dashboard)
 app.get('/cast', (req, res) => res.sendFile(path.join(config.publicDir, 'cast.html')));

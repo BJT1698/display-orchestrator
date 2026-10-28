@@ -57,6 +57,12 @@ export const calendarsApi = {
   remove: (id) => jsonCall(`${API_BASE}/calendars/${id}`, 'DELETE'),
 };
 
+export const wikiApi = {
+  get: () => jsonCall(`${API_BASE}/wiki`),
+  connect: (url, email, password) => jsonCall(`${API_BASE}/wiki`, 'PUT', { url, email, password }),
+  disconnect: () => jsonCall(`${API_BASE}/wiki`, 'DELETE'),
+};
+
 export const liveApi = {
   show: (id, displayId, minutes) => jsonCall(`${API_BASE}/live/${id}/show`, 'POST', { displayId, minutes }),
   hide: (id, displayId) => jsonCall(`${API_BASE}/live/${id}/hide`, 'POST', { displayId }),
