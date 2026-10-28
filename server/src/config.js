@@ -39,6 +39,8 @@ export const config = {
   // TURN_URLS: comma list, e.g. "turn:192.168.55.10:3478,turn:172.17.11.10:3478"; TURN_SECRET: coturn static-auth-secret
   turnUrls: (process.env.TURN_URLS || '').split(',').map((u) => u.trim()).filter(Boolean),
   turnSecret: process.env.TURN_SECRET || '',
+  // Shared key for PCs in a PXE deploy that show their screen (SignageLive.ps1 on the PXE share)
+  liveToken: process.env.LIVE_TOKEN || '',
   authSecret: process.env.AUTH_SECRET || 'display-orchestrator-secret-key-2026',
   appVersion: '1.0.0'
 };

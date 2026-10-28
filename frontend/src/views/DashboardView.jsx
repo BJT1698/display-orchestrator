@@ -1,6 +1,7 @@
 import React from 'react';
 import { KeyRound, Plus, Power, MousePointerClick, MonitorUp, Globe, Moon, CalendarClock } from 'lucide-react';
 import { EmptyState, Tally, formatDuration, formatTime, isPortrait } from '../components/ui';
+import { LiveSources } from '../components/LiveSources';
 
 function thumbnailAge(timestamp) {
   const seconds = Math.max(0, Math.round((Date.now() - new Date(timestamp).getTime()) / 1000));
@@ -122,7 +123,8 @@ export function DashboardView({
   thumbnails = {},
   actions,
   onSelectDisplay,
-  onNavigate
+  onNavigate,
+  liveSources = []
 }) {
   const onlineDisplays = displays.filter((d) => d.status === 'online');
   const sortedDisplays = [...displays].sort((a, b) => {
@@ -163,6 +165,8 @@ export function DashboardView({
           label={`Server uptime, ${systemStats?.memory?.percent || 0}% memory in use`}
         />
       </div>
+
+      <LiveSources sources={liveSources} displays={displays} />
 
       <section aria-labelledby="wall-heading">
         <div className="flex items-baseline justify-between gap-4 mb-4">

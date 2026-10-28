@@ -66,6 +66,7 @@ function Console({ user, onSignOut }) {
   const [displays, setDisplays] = useState([]);
   const [pendingPairings, setPendingPairings] = useState([]);
   const [guestRequests, setGuestRequests] = useState([]);
+  const [liveSources, setLiveSources] = useState([]);
   const [iceServers, setIceServers] = useState([]);
   const [playlists, setPlaylists] = useState([]);
   const [mediaList, setMediaList] = useState([]);
@@ -195,7 +196,12 @@ function Console({ user, onSignOut }) {
           if (msg.data.displays) setDisplays(msg.data.displays);
           if (msg.data.pendingPairings) setPendingPairings(msg.data.pendingPairings);
           setGuestRequests(msg.data.guestRequests || []);
+          setLiveSources(msg.data.liveSources || []);
           setIceServers(msg.data.iceServers || []);
+          break;
+
+        case 'LIVE_SOURCES':
+          setLiveSources(msg.data || []);
           break;
 
         case 'GUEST_REQUESTS':
@@ -361,6 +367,7 @@ function Console({ user, onSignOut }) {
         <div className="px-4 sm:px-8 py-8 max-w-[1400px] mx-auto">
           {currentTab === 'dashboard' && (
             <DashboardView
+              liveSources={liveSources}
               systemStats={systemStats}
               displays={displays}
               pendingPairings={isAdmin ? pendingPairings : []}

@@ -13,6 +13,7 @@ import { systemRouter } from './routes/system.js';
 import { authRouter } from './routes/auth.js';
 import { usersRouter } from './routes/users.js';
 import { calendarsRouter, calendarFeed } from './routes/calendars.js';
+import { liveRouter, liveFeed } from './routes/live.js';
 import { attachUser, requireUser, requireAdmin, ensureSetupCode, purgeExpiredSessions } from './auth/auth.js';
 
 // Initialize Database on startup
@@ -53,6 +54,7 @@ app.use('/api/playlists', playlistsRouter);
 app.use('/api/schedules', schedulesRouter);
 app.use('/api/system', systemRouter);
 app.use('/api/calendars', calendarsRouter);
+app.use('/api/live', liveRouter);
 
 // Widget previews run in sandboxed iframes (opaque origin) and load these fonts cross-origin
 app.use('/fonts', (req, res, next) => {
@@ -62,6 +64,9 @@ app.use('/fonts', (req, res, next) => {
 
 // Serve frontend SPA
 app.use(express.static(config.publicDir));
+
+// Screens of PCs in a PXE deploy: PCs post with the shared key, displays watch by random token
+app.use('/live', liveFeed);
 
 // Calendar events for screens (by random id, no session)
 app.use('/calendar', calendarFeed);
@@ -135,6 +140,7 @@ const shutdown = () => {
   // Displays keep their sockets open forever, so close them or server.close() never returns
   if (wsHub.heartbeatTimer) clearInterval(wsHub.heartbeatTimer);
   if (wsHub.scheduleTimer) clearInterval(wsHub.scheduleTimer);
+  if (wsHub.liveTimer) clearInterval(wsHub.liveTimer);
   if (wsHub.wss) {
     for (const client of wsHub.wss.clients) client.terminate();
     wsHub.wss.close();
