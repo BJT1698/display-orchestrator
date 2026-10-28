@@ -562,7 +562,7 @@ function render(){
 
   // Latest changes
   list.innerHTML = (data.recent || []).map(function(c){
-    var pages = c.pages.map(function(p){ return where(p) + esc(p.title); }).join(', ') + (c.more ? ' <span class="w-faint">+' + c.more + '</span>' : '');
+    var pages = c.pages.map(function(p){ return where(p) + esc(p.title) + (p.attachment ? ' <span class="w-faint">(allegato)</span>' : ''); }).join(', ') + (c.more ? ' <span class="w-faint">+' + c.more + '</span>' : '');
     return '<div class="wk-row"><div class="wk-when">' + ago(c.at) + '</div><div class="wk-what">' +
       '<div class="wk-rtitle">' + (pages || '<span class="w-muted">Allegati</span>') + '</div>' +
       '<div class="wk-rmeta w-faint">' + esc(c.author || '') + (c.message ? (c.author ? '  ·  ' : '') + esc(c.message) : '') + '</div>' +

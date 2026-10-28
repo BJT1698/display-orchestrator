@@ -152,8 +152,11 @@ never commit them.**
 **Wiki widget**: statistics of an An Otter Wiki read with a read-only account.
 `services/wikiService.js` logs in through the wiki's form (CSRF token + session cookie, logs in again
 on 403/redirect), reads `/sitemap.xml` (page count) and `/-/changelog/feed.atom` (the whole history:
-the oldest commit touching a page that still exists = its creation; page names come from the
-enclosure links, not the entry title). Account in `settings` key `wiki` (`url`, `email`, `password`,
+the oldest commit touching a page that still exists = its creation, a rename counts as new; the
+feed lists the oldest commit first with dates to the second, so order comes from feed position;
+page names come from each entry's `<link href="/<page>?revision=…">`, attachments are
+`/<page>/a/<file>/<rev>`). Checked against a real Otter Wiki 2.24.1 in Docker
+(`redimp/otterwiki:2.24.1`). Login errors say why: wrong password, email not confirmed, not approved. Account in `settings` key `wiki` (`url`, `email`, `password`,
 random `feedId`); `GET/PUT/DELETE /api/wiki` (PUT checks the login first, an empty password keeps the
 saved one, the password never comes back out); screens read `GET /wiki/<feedId>.json` (no session,
 CORS *, 5 min cache, last good numbers kept).

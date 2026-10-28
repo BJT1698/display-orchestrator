@@ -63,10 +63,16 @@ async function login(wiki) {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ csrf_token: csrf, email: wiki.email, password: wiki.password }).toString(),
   });
-  // Success redirects away from the login page; a wrong password shows the form again (200)
-  if (res.status < 300 || res.status >= 400 || /\/-\/login/.test(res.headers.get('location') || '')) {
-    throw new Error('The wiki did not accept that email and password.');
+  // Success redirects away from the login page. A wrong password or an unconfirmed email shows the
+  // form again (200); an account waiting for approval is sent back to the login page.
+  if (res.status >= 300 && res.status < 400) {
+    if (!/\/-\/login/.test(res.headers.get('location') || '')) return;
+    throw new Error('The wiki has not approved this account yet. An administrator can approve it in the wiki\'s user settings.');
   }
+  if (/email address has not been confirmed/i.test(await res.text())) {
+    throw new Error('The email of this wiki account is not confirmed yet. Confirm it, or have an administrator mark it as confirmed.');
+  }
+  throw new Error('The wiki did not accept that email and password.');
 }
 
 async function read(wiki, path) {
@@ -107,11 +113,16 @@ function pageFromHref(href) {
 function parseFeed(xml) {
   return [...xml.matchAll(/<entry>([\s\S]*?)<\/entry>/g)].map(([, e]) => {
     const pages = [];
+    // One link per file: "<page>?revision=<rev>" for pages, "<page>/a/<file>" for attachments
+    // (older feeds: rel="enclosure" with the file's type)
     for (const [link] of e.matchAll(/<link\b[^>]*>/g)) {
-      if (!/rel="enclosure"/.test(link) || !/type="text\/html"/.test(link)) continue;
+      const type = /type="([^"]*)"/.exec(link)?.[1];
+      if (type && type !== 'text/html') continue;
       const href = decodeXml(/href="([^"]*)"/.exec(link)?.[1]);
-      const page = pageFromHref(href);
-      if (page) pages.push(page);
+      const attached = /^(.*)\/a\/[^/]+(\/[0-9a-f]+)?$/.exec(href.split('?')[0]);
+      const page = pageFromHref(attached ? attached[1] : href);
+      if (page && attached) page.attachment = true;
+      if (page && !pages.some((x) => x.key === page.key)) pages.push(page);
     }
     const message = tag(e, 'summary') || tag(e, 'content');
     return {
@@ -132,17 +143,21 @@ function pageName(name) {
 function buildStats(sitemapXml, feedXml) {
   const pages = new Set([...sitemapXml.matchAll(/<loc>([\s\S]*?)<\/loc>/g)]
     .map(([, loc]) => pageFromHref(decodeXml(loc))?.key).filter(Boolean));
-  const commits = parseFeed(feedXml).sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
+  // Otter Wiki lists the oldest commit first and dates to the second: put the feed newest first,
+  // then a stable sort keeps commits made in the same second in their real order
+  let commits = parseFeed(feedXml);
+  if (commits.length > 1 && Date.parse(commits[0].at) < Date.parse(commits[commits.length - 1].at)) commits.reverse();
+  commits = commits.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
 
   // The oldest commit that touches a page is the one that created it
-  const created = new Map(); // key -> { at, author, name }
-  for (const c of commits) {
+  const created = new Map(); // key -> { at, author, name, n: position of the commit, 0 = newest }
+  commits.forEach((c, n) => {
     for (const p of c.pages) {
-      if (pages.has(p.key)) created.set(p.key, { at: c.at, author: c.author, name: p.name }); // else deleted since
+      if (!p.attachment && pages.has(p.key)) created.set(p.key, { at: c.at, author: c.author, name: p.name, n }); // else deleted since
     }
-  }
+  });
   const newest = [...created.entries()]
-    .sort((a, b) => Date.parse(b[1].at) - Date.parse(a[1].at))
+    .sort((a, b) => a[1].n - b[1].n)
     .slice(0, 3)
     .map(([, c]) => ({ ...pageName(c.name), author: c.author, at: c.at }));
 
@@ -152,7 +167,7 @@ function buildStats(sitemapXml, feedXml) {
     pages: pages.size,
     newest,
     recent: commits.slice(0, 8).map((c) => ({
-      pages: c.pages.slice(0, 3).map((p) => pageName(p.name)),
+      pages: c.pages.slice(0, 3).map((p) => ({ ...pageName(p.name), attachment: Boolean(p.attachment) })),
       more: Math.max(0, c.pages.length - 3),
       author: c.author,
       at: c.at,
