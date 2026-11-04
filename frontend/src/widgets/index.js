@@ -3,6 +3,7 @@ import { nightClockWidget } from './nightClock';
 import { countdownWidget } from './countdown';
 import { calendarWidget } from './calendar';
 import { wikiWidget } from './wiki';
+import { fireplaceWidget } from './fireplace';
 import { qrWidget } from './qr';
 import { weatherWidget } from './weather';
 import { announcementWidget } from './announcement';
@@ -16,6 +17,6 @@ export function readWidget(html) {
 }
 
 // Order shown in the "Add widget" gallery
-export const WIDGETS = [announcementWidget, weatherWidget, calendarWidget, wikiWidget, clockWidget, nightClockWidget, countdownWidget, qrWidget];
+export const WIDGETS = [announcementWidget, weatherWidget, calendarWidget, wikiWidget, clockWidget, nightClockWidget, fireplaceWidget, countdownWidget, qrWidget];
 
 export const widgetByType = (type) => WIDGETS.find((w) => w.type === type) || null;

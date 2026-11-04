@@ -11,6 +11,7 @@ const TONES = {
 export const nightClockWidget = {
   type: 'night-clock',
   label: 'Night clock',
+  noTheme: true, // stays black and dim: no decorations
   description: 'A dim clock on black for after hours, drifting slowly to spare the panel.',
   defaults: { title: '', showDate: true, tone: 'dim', timeZone: 'Europe/Rome' },
   fields: [
@@ -30,6 +31,7 @@ export const nightClockWidget = {
   render(c) {
     const tone = TONES[c.tone] || TONES.dim;
     return wrapWidget({ type: 'night-clock', ...c }, {
+      themeOptions: false,
       css: `
         .w.nc{background:#000;color:${tone.time}}
         .nc-area{position:absolute;inset:7vmin;display:flex;align-items:center}

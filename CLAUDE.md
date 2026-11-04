@@ -138,7 +138,7 @@ viewer, sync it: `rsync -a --delete client/viewer/ nixos/client/viewer/ && cp cl
 `frontend/src/widgets/`: announcement, weather (Open-Meteo, fetched by the screen every 15 min,
 last answer kept in localStorage; animated scene per weather and day/night: sky gradient, CSS
 clouds/sun/stars, one canvas for rain and snow, crossfade on change; `window.signageWeatherPreview(code, isDay)`
-shows any scene for tests), clock, night clock (black, dim, slow drift against burn-in), calendar and wiki (see below), countdown, QR (SVG drawn at authoring time). Each widget
+shows any scene for tests), clock, night clock (black, dim, slow drift against burn-in), fireplace, calendar and wiki (see below), countdown, QR (SVG drawn at authoring time). Each widget
 renders a self-contained HTML snippet saved as an ordinary `html_snippet` media; its settings ride
 in a leading `<!-- signage-widget:<base64 JSON> -->` comment so the dashboard can reopen it.
 **Calendar widget**: calendars published as ICS (Outlook "Publish a calendar") are stored on the
@@ -160,6 +160,16 @@ page names come from each entry's `<link href="/<page>?revision=…">`, attachme
 random `feedId`); `GET/PUT/DELETE /api/wiki` (PUT checks the login first, an empty password keeps the
 saved one, the password never comes back out); screens read `GET /wiki/<feedId>.json` (no session,
 CORS *, 5 min cache, last good numbers kept).
+**Themes** (`widgets/theme.js`): a "Theme" select under every widget's fields (`config.theme`,
+`christmas` or none); `wrapWidget` adds the decorations on top: a string of twinkling lights in the
+top padding (SVG wire + bulbs placed in vmin, drawn at authoring time), a warm glow at the bottom and
+a small snow canvas (~30 fps). A widget passes `themeOptions` (`{ snow: false }`) or `false` (night
+clock, which also sets `noTheme` to hide the field). **Fireplace widget** (`widgets/fireplace.js`): room,
+bricks, mantel and logs drawn once on a canvas (seeded random, redrawn on resize, fits portrait), fire
+as a 96x72 heat field cooled by a scrolling noise map (classic demo effect; cooling `pow(n,3)*16`
+plus 1.5 per row gives tongues reaching ~3/4 of the firebox), pre-warmed 160 steps so it starts lit,
+scaled up with a light blur, sparks, and a screen-blended light whose opacity follows the fire.
+With the Christmas theme: garland and stockings on the mantel, lights on top, no snow indoors.
 Announcement pictures are embedded once (data URL in the page, a placeholder in the settings).
 Screen text is Italian; sizes in vmin. Editing a media re-syncs all displays, and the agent's
 playlist `revision` hash makes the viewer restart playback when any item changed.
