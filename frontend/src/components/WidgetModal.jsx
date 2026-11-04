@@ -4,7 +4,11 @@ import { mediaApi, calendarsApi, wikiApi } from '../services/api';
 import { WIDGETS, widgetByType, readWidget } from '../widgets';
 import { searchPlaces } from '../widgets/weather';
 import { imageToDataUrl } from '../widgets/announcement';
+import { THEME_OPTIONS } from '../widgets/theme';
 import { Modal, ErrorNote, SnippetFrame } from './ui';
+
+// Offered on every widget that does not opt out: seasonal decorations drawn on top of it
+const THEME_FIELD = { key: 'theme', label: 'Theme', type: 'select', options: THEME_OPTIONS, hint: 'Decorations on top of the widget, e.g. lights and snow at Christmas.' };
 
 // Create a widget (pick a type, fill the form, check the preview) or edit one already in the library
 export function WidgetModal({ media, onClose, onSaved }) {
@@ -111,6 +115,9 @@ export function WidgetModal({ media, onClose, onSaved }) {
           {widget.fields.map((field) => (
             <Field key={field.key} field={field} value={config[field.key]} config={config} onChange={set} onError={setError} />
           ))}
+          {!widget.noTheme && (
+            <Field field={THEME_FIELD} value={config.theme || ''} config={config} onChange={set} onError={setError} />
+          )}
           <div className="grid grid-cols-[1fr_7rem] gap-3 pt-2 border-t border-line">
             <div>
               <label className="field-label" htmlFor="w-name">Name in the library</label>

@@ -1,3 +1,5 @@
+import { themeParts } from './theme';
+
 // Widgets are saved as ordinary HTML snippets, so screens play them like any other media. The
 // widget's settings ride along in a leading comment, which lets the dashboard reopen it for editing.
 
@@ -40,12 +42,17 @@ const BASE_CSS = `
 .w-faint{color:#6B727C}
 `;
 
-export function wrapWidget(config, { css = '', body, script = '' }) {
+// `theme` (from the widget's settings) adds seasonal decorations on top; a widget can pass
+// `themeOptions` to tune them, or `false` to never wear one
+export function wrapWidget(config, { css = '', body, script = '', themeOptions = {} }) {
+  const theme = themeOptions === false ? null : themeParts(config.theme, themeOptions);
   return [
     `<!-- signage-widget:${toBase64(JSON.stringify(config))} -->`,
-    `<style>${BASE_CSS}${css}</style>`,
+    `<style>${BASE_CSS}${css}${theme ? theme.css : ''}</style>`,
     body,
+    theme ? theme.body : '',
     script ? `<script>(function(){${script}})();</script>` : '',
+    theme?.script ? `<script>${theme.script}</script>` : '',
   ].join('\n');
 }
 
