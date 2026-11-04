@@ -169,7 +169,10 @@ bricks, mantel and logs drawn once on a canvas (seeded random, redrawn on resize
 as a 96x72 heat field cooled by a scrolling noise map (classic demo effect; cooling `pow(n,3)*16`
 plus 1.5 per row gives tongues reaching ~3/4 of the firebox), pre-warmed 160 steps so it starts lit,
 scaled up with a light blur, sparks, and a screen-blended light whose opacity follows the fire.
-With the Christmas theme: garland and stockings on the mantel, lights on top, no snow indoors.
+With the Christmas theme: garland on the mantel, a Christmas tree (canvas, plus twinkling DOM lights) and a
+nativity (stable, Mary, Joseph, child, ox and donkey, comet); 16:9 puts them on the floor beside the
+fireplace, narrower screens shrink the fireplace to the left (also limited by height), tree on its
+right, nativity on the mantel. Lights on top, no snow indoors.
 Announcement pictures are embedded once (data URL in the page, a placeholder in the settings).
 Screen text is Italian; sizes in vmin. Editing a media re-syncs all displays, and the agent's
 playlist `revision` hash makes the viewer restart playback when any item changed.
